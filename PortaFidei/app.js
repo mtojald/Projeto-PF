@@ -1,134 +1,24 @@
 /* ==========================================================================
-   PORTA FIDEI - LOGIC & LOCALSTORAGE MANAGER
+   PORTA FIDEI - CLIENT APPLICATION LOGIC (CONNECTED TO NODE.JS & SUPABASE API)
    ========================================================================== */
 
 (function () {
   'use strict';
 
-  // --- SEED DATA & CONFIGURATION ---
-  const INITIAL_LOCATIONS = [
-    { id: 'loc-1', name: 'Casa PF' },
-    { id: 'loc-2', name: 'Samaria PF' }
-  ];
+  // --- API CLIENT ---
+  const API_BASE = '/api';
 
-  const INITIAL_USERS = [
-    {
-      id: 'user-admin-cacaia',
-      name: 'Cacaia',
-      username: 'Cacaia',
-      email: 'cacaia@portafidei.com',
-      password: 'santafaustina',
-      role: 'admin',
-      status: 'approved',
-      locationId: 'loc-1',
-      createdAt: '2026-01-01'
+  class API {
+    static getToken() {
+      return localStorage.getItem('pf_token');
     }
-  ];
 
-  const INITIAL_BOOKS = [
-    {
-      id: 'book-1',
-      title: 'Confissões de Santo Agostinho',
-      author: 'Santo Agostinho',
-      category: 'Espiritualidade',
-      cover: 'assets/confissoes.png',
-      locationId: 'loc-1',
-      copiesAvailable: 4,
-      copiesTotal: 5
-    },
-    {
-      id: 'book-2',
-      title: 'Suma Teológica (Volume I)',
-      author: 'Santo Tomás de Aquino',
-      category: 'Teologia',
-      cover: 'assets/suma-teologica.png',
-      locationId: 'loc-1',
-      copiesAvailable: 2,
-      copiesTotal: 3
-    },
-    {
-      id: 'book-3',
-      title: 'Imitação de Cristo',
-      author: 'Tomás de Kempis',
-      category: 'Espiritualidade',
-      cover: 'assets/confissoes.png',
-      locationId: 'loc-2',
-      copiesAvailable: 5,
-      copiesTotal: 5
-    },
-    {
-      id: 'book-4',
-      title: 'O Castelo Interior',
-      author: 'Santa Teresa de Ávila',
-      category: 'Espiritualidade',
-      cover: 'assets/suma-teologica.png',
-      locationId: 'loc-2',
-      copiesAvailable: 3,
-      copiesTotal: 3
-    }
-  ];
-
-  const INITIAL_RENTALS = [];
-
-  // --- SECURITY & STORAGE MANAGER ---
-  class StorageManager {
-    static init() {
-      // 1. Locations setup & migration
-      let locations = StorageManager.get('locations');
-      if (!locations || locations.length === 0 || !locations.some(l => l.name === 'Casa PF')) {
-        localStorage.setItem('pf_locations', JSON.stringify(INITIAL_LOCATIONS));
-      }
-
-      // 2. Users setup & migration
-      let users = StorageManager.get('users');
-      if (!users || users.length === 0) {
-        users = INITIAL_USERS;
+    static setToken(token) {
+      if (token) {
+        localStorage.setItem('pf_token', token);
       } else {
-        users = users.filter(u => u.email !== 'admin@portafidei.com');
-
-        const cacaiaIdx = users.findIndex(u =>
-          (u.username && u.username.toLowerCase() === 'cacaia') ||
-          (u.email && u.email.toLowerCase() === 'cacaia') ||
-          (u.email && u.email.toLowerCase() === 'cacaia@portafidei.com')
-        );
-
-        if (cacaiaIdx === -1) {
-          users.unshift(INITIAL_USERS[0]);
-        } else {
-          users[cacaiaIdx].password = 'santafaustina';
-          users[cacaiaIdx].role = 'admin';
-          users[cacaiaIdx].status = 'approved';
-          users[cacaiaIdx].username = 'Cacaia';
-        }
+        localStorage.removeItem('pf_token');
       }
-      localStorage.setItem('pf_users', JSON.stringify(users));
-
-      // 3. Books setup & migration
-      let books = StorageManager.get('books');
-      if (!books || books.length === 0) {
-        localStorage.setItem('pf_books', JSON.stringify(INITIAL_BOOKS));
-      } else {
-        books.forEach(b => {
-          if (b.locationId !== 'loc-1' && b.locationId !== 'loc-2') {
-            b.locationId = 'loc-1';
-          }
-        });
-        localStorage.setItem('pf_books', JSON.stringify(books));
-      }
-
-      // 4. Rentals setup
-      if (!localStorage.getItem('pf_rentals')) {
-        localStorage.setItem('pf_rentals', JSON.stringify(INITIAL_RENTALS));
-      }
-    }
-
-    static get(key) {
-      const data = localStorage.getItem(`pf_${key}`);
-      return data ? JSON.parse(data) : [];
-    }
-
-    static set(key, value) {
-      localStorage.setItem(`pf_${key}`, JSON.stringify(value));
     }
 
     static getCurrentUser() {
@@ -143,17 +33,103 @@
         localStorage.removeItem('pf_current_user');
       }
     }
+
+    static async request(endpoint, method = 'GET', data = null, requiresAuth = false) {
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      const token = this.getToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const config = { method, headers };
+      if (data) {
+        config.body = JSON.stringify(data);
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`, config);
+        const json = await response.json();
+
+        if (!response.ok) {
+          throw new Error(json.error || 'Erro na requisição.');
+        }
+        return json;
+      } catch (err) {
+        console.error(`API Error [${endpoint}]:`, err);
+        throw err;
+      }
+    }
+
+    // API METHODS
+    static async getLocations() {
+      return await this.request('/locations');
+    }
+
+    static async login(identifier, password) {
+      const res = await this.request('/auth/login', 'POST', { identifier, password });
+      this.setToken(res.token);
+      this.setCurrentUser(res.user);
+      return res.user;
+    }
+
+    static async register(userData) {
+      return await this.request('/auth/register', 'POST', userData);
+    }
+
+    static async getBooks(params = {}) {
+      const query = new URLSearchParams(params).toString();
+      return await this.request(`/books${query ? '?' + query : ''}`);
+    }
+
+    static async addBook(bookData) {
+      return await this.request('/books', 'POST', bookData, true);
+    }
+
+    static async updateBook(bookId, fields) {
+      return await this.request(`/books/${bookId}`, 'PUT', fields, true);
+    }
+
+    static async deleteBook(bookId) {
+      return await this.request(`/books/${bookId}`, 'DELETE', null, true);
+    }
+
+    static async createRental(rentalData) {
+      return await this.request('/rentals', 'POST', rentalData, true);
+    }
+
+    static async getMyRentals() {
+      return await this.request('/rentals/my', 'GET', null, true);
+    }
+
+    static async getAdminStats() {
+      return await this.request('/admin/stats', 'GET', null, true);
+    }
+
+    static async getPendingUsers() {
+      return await this.request('/admin/users/pending', 'GET', null, true);
+    }
+
+    static async updateUserStatus(userId, status) {
+      return await this.request(`/admin/users/${userId}/status`, 'PATCH', { status }, true);
+    }
+
+    static async getPendingRentals() {
+      return await this.request('/admin/rentals/pending', 'GET', null, true);
+    }
+
+    static async updateRentalStatus(rentalId, status) {
+      return await this.request(`/admin/rentals/${rentalId}/status`, 'PATCH', { status }, true);
+    }
   }
 
-  // Initialize Storage
-  StorageManager.init();
-
   // --- APP STATE ---
-  let currentUser = StorageManager.getCurrentUser();
+  let currentUser = API.getCurrentUser();
   let currentActiveView = 'viewCatalog';
-  let currentAdminTab = 'adminTabUsers';
 
-  // --- STRICT ADMIN VERIFICATION GUARD ---
+  // Strict Admin Check
   function isAdmin(user) {
     if (!user) return false;
     if (user.role !== 'admin') return false;
@@ -269,26 +245,24 @@
 
   // REAL & SIMULATED EMAIL DISPATCHER
   function triggerRealEmail(recipientEmail, subject, bodyText) {
-    // 1. Try sending via EmailJS if loaded
     if (window.emailjs && window.emailjs.send) {
       try {
         window.emailjs.send('default_service', 'template_portafidei', {
           to_email: recipientEmail,
           subject: subject,
           message: bodyText
-        }).catch(err => console.warn('EmailJS fallback active:', err));
+        }).catch(err => console.warn('EmailJS fallback:', err));
       } catch (e) {
-        console.warn('EmailJS dispatch note:', e);
+        console.warn('EmailJS note:', e);
       }
     }
 
-    // 2. Open Email Modal Confirmation
     if (emailModalRecipient && emailModalSubject && emailModalBody && emailModal) {
       emailModalRecipient.textContent = recipientEmail;
       emailModalSubject.textContent = subject;
-      
+
       const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
-      
+
       emailModalBody.innerHTML = `
         <div>${bodyText.replace(/\n/g, '<br>')}</div>
         <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--border-subtle);">
@@ -297,7 +271,7 @@
           </a>
         </div>
       `;
-      
+
       emailModal.classList.add('open');
       if (window.lucide) window.lucide.createIcons();
     }
@@ -307,7 +281,7 @@
 
   function formatDateBR(dateStr) {
     if (!dateStr) return '-';
-    const parts = dateStr.split('-');
+    const parts = dateStr.split('T')[0].split('-');
     if (parts.length !== 3) return dateStr;
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
@@ -323,7 +297,6 @@
   }
 
   function switchView(viewName) {
-    // SECURITY GUARD: Check admin access before switching to admin view
     if (viewName === 'viewAdminDashboard') {
       if (!isAdmin(currentUser)) {
         showToast('Acesso negado: Apenas a usuária Administradora possui permissão de acesso ao Painel de Administração.', 'error');
@@ -340,27 +313,33 @@
       }
     });
 
-    // Update Nav Buttons State
     navCatalogBtn.classList.toggle('active', viewName === 'viewCatalog');
     navMyRentalsBtn.classList.toggle('active', viewName === 'viewUserDashboard');
     navAdminBtn.classList.toggle('active', viewName === 'viewAdminDashboard');
 
-    // Trigger renders
     if (viewName === 'viewCatalog') renderCatalog();
     if (viewName === 'viewUserDashboard') renderUserDashboard();
     if (viewName === 'viewAdminDashboard') renderAdminDashboard();
     if (window.lucide) window.lucide.createIcons();
   }
 
-  function updateAuthUI() {
-    currentUser = StorageManager.getCurrentUser();
-    const pendingUsers = StorageManager.get('users').filter(u => u.status === 'pending');
-    const pendingRentals = StorageManager.get('rentals').filter(r => r.status === 'pending');
-    const totalPending = pendingUsers.length + pendingRentals.length;
+  async function updateAuthUI() {
+    currentUser = API.getCurrentUser();
 
-    if (totalPending > 0 && isAdmin(currentUser)) {
-      adminPendingBadge.textContent = totalPending;
-      adminPendingBadge.style.display = 'inline-flex';
+    if (currentUser && isAdmin(currentUser)) {
+      try {
+        const stats = await API.getAdminStats();
+        const totalPending = (stats.pendingUsersCount || 0) + (stats.pendingRentalsCount || 0);
+
+        if (totalPending > 0) {
+          adminPendingBadge.textContent = totalPending;
+          adminPendingBadge.style.display = 'inline-flex';
+        } else {
+          adminPendingBadge.style.display = 'none';
+        }
+      } catch (err) {
+        adminPendingBadge.style.display = 'none';
+      }
     } else {
       adminPendingBadge.style.display = 'none';
     }
@@ -396,103 +375,92 @@
 
   // --- RENDER LOGIC ---
 
-  // Populate Location Dropdowns
-  function populateLocationDropdowns() {
-    const locations = StorageManager.get('locations');
+  async function populateLocationDropdowns() {
+    try {
+      const locations = await API.getLocations();
 
-    // Global Filter
-    globalLocationSelect.innerHTML = `<option value="ALL">📍 Todas as Unidades</option>` +
-      locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
+      globalLocationSelect.innerHTML = `<option value="ALL">📍 Todas as Unidades</option>` +
+        locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
 
-    // Signup Location
-    signupLocationSelect.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
+      signupLocationSelect.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
+      rentalLocation.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
+      newBookLocation.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
 
-    // Rental Modal Location
-    rentalLocation.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
-
-    // Add Book Location
-    newBookLocation.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
-
-    // Edit Book Location
-    if (editBookLocation) {
-      editBookLocation.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
+      if (editBookLocation) {
+        editBookLocation.innerHTML = locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('');
+      }
+    } catch (err) {
+      console.error('Erro ao carregar locais:', err);
     }
   }
 
-  // Render Book Catalog
-  function renderCatalog() {
-    const books = StorageManager.get('books');
-    const locations = StorageManager.get('locations');
-    const locMap = Object.fromEntries(locations.map(l => [l.id, l.name]));
+  async function renderCatalog() {
+    try {
+      const search = globalSearchInput.value.trim();
+      const location_id = globalLocationSelect.value;
+      const category = categoryFilterSelect.value;
 
-    const searchVal = globalSearchInput.value.toLowerCase().trim();
-    const selectedLoc = globalLocationSelect.value;
-    const selectedCat = categoryFilterSelect.value;
+      const books = await API.getBooks({ search, location_id, category });
+      const locations = await API.getLocations();
+      const locMap = Object.fromEntries(locations.map(l => [l.id, l.name]));
 
-    const filtered = books.filter(book => {
-      const matchesSearch = book.title.toLowerCase().includes(searchVal) ||
-        book.author.toLowerCase().includes(searchVal) ||
-        book.category.toLowerCase().includes(searchVal);
-      const matchesLoc = selectedLoc === 'ALL' || book.locationId === selectedLoc;
-      const matchesCat = selectedCat === 'ALL' || book.category === selectedCat;
-
-      return matchesSearch && matchesLoc && matchesCat;
-    });
-
-    if (filtered.length === 0) {
-      bookGridContainer.innerHTML = `
-        <div class="empty-state" style="grid-column: 1 / -1;">
-          <i data-lucide="book-open" style="width: 48px; height: 48px;"></i>
-          <h3>Nenhum livro encontrado</h3>
-          <p>Tente ajustar os termos de pesquisa ou filtros de unidade.</p>
-        </div>
-      `;
-      if (window.lucide) window.lucide.createIcons();
-      return;
-    }
-
-    bookGridContainer.innerHTML = filtered.map(book => {
-      const locName = locMap[book.locationId] || 'Casa PF';
-      const isAvailable = book.copiesAvailable > 0;
-
-      return `
-        <div class="book-card">
-          <div class="book-cover-wrap">
-            <img src="${book.cover}" alt="${book.title}" class="book-cover-img" onerror="this.src='https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&q=80'">
-            <span class="book-badge-location">📍 ${locName}</span>
+      if (books.length === 0) {
+        bookGridContainer.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <i data-lucide="book-open" style="width: 48px; height: 48px;"></i>
+            <h3>Nenhum livro encontrado</h3>
+            <p>Tente ajustar os termos de pesquisa ou filtros de unidade.</p>
           </div>
-          <div class="book-info">
-            <span class="book-category">${book.category}</span>
-            <h3 class="book-title font-serif">${book.title}</h3>
-            <p class="book-author">por ${book.author}</p>
-            <div class="book-stock">
-              <i data-lucide="${isAvailable ? 'check-circle' : 'alert-circle'}" style="color: ${isAvailable ? '#10B981' : '#EF4444'}"></i>
-              <span>${isAvailable ? `${book.copiesAvailable} de ${book.copiesTotal} exemplares` : 'Indisponível no momento'}</span>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+        return;
+      }
+
+      bookGridContainer.innerHTML = books.map(book => {
+        const locName = locMap[book.location_id] || 'Casa PF';
+        const availableCount = book.copies_available !== undefined ? book.copies_available : book.copiesAvailable;
+        const totalCount = book.copies_total !== undefined ? book.copies_total : book.copiesTotal;
+        const isAvailable = availableCount > 0;
+
+        return `
+          <div class="book-card">
+            <div class="book-cover-wrap">
+              <img src="${book.cover}" alt="${book.title}" class="book-cover-img" onerror="this.src='https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&q=80'">
+              <span class="book-badge-location">📍 ${locName}</span>
             </div>
-            <div class="book-card-footer">
-              <button class="btn ${isAvailable ? 'btn-primary' : 'btn-secondary'} btn-sm btn-full open-rent-modal-btn" 
-                      data-book-id="${book.id}" ${!isAvailable ? 'disabled' : ''}>
-                <i data-lucide="calendar-plus"></i> ${isAvailable ? 'Solicitar Aluguel' : 'Esgotado'}
-              </button>
+            <div class="book-info">
+              <span class="book-category">${book.category}</span>
+              <h3 class="book-title font-serif">${book.title}</h3>
+              <p class="book-author">por ${book.author}</p>
+              <div class="book-stock">
+                <i data-lucide="${isAvailable ? 'check-circle' : 'alert-circle'}" style="color: ${isAvailable ? '#10B981' : '#EF4444'}"></i>
+                <span>${isAvailable ? `${availableCount} de ${totalCount} exemplares` : 'Indisponível no momento'}</span>
+              </div>
+              <div class="book-card-footer">
+                <button class="btn ${isAvailable ? 'btn-primary' : 'btn-secondary'} btn-sm btn-full open-rent-modal-btn" 
+                        data-book-id="${book.id}" ${!isAvailable ? 'disabled' : ''}>
+                  <i data-lucide="calendar-plus"></i> ${isAvailable ? 'Solicitar Aluguel' : 'Esgotado'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
 
-    // Attach listeners to rental buttons
-    document.querySelectorAll('.open-rent-modal-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const bookId = e.currentTarget.getAttribute('data-book-id');
-        openRentalModal(bookId);
+      document.querySelectorAll('.open-rent-modal-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const bookId = e.currentTarget.getAttribute('data-book-id');
+          openRentalModal(bookId);
+        });
       });
-    });
 
-    if (window.lucide) window.lucide.createIcons();
+      if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+      showToast('Erro ao carregar catálogo de livros.', 'error');
+    }
   }
 
-  // Render User Dashboard
-  function renderUserDashboard() {
+  async function renderUserDashboard() {
     if (!currentUser || currentUser.role !== 'user') return;
 
     let statusBadgeHtml = '';
@@ -505,336 +473,303 @@
     }
     userAccountStatusBadge.innerHTML = statusBadgeHtml;
 
-    const rentals = StorageManager.get('rentals').filter(r => r.userId === currentUser.id);
+    try {
+      const rentals = await API.getMyRentals();
 
-    if (rentals.length === 0) {
-      userRentalsTableBody.innerHTML = `
-        <tr>
-          <td colspan="7" class="empty-state">
-            <i data-lucide="inbox" style="width: 36px; height: 36px;"></i>
-            <p>Você ainda não possui nenhuma solicitação de aluguel.</p>
-          </td>
-        </tr>
-      `;
-      if (window.lucide) window.lucide.createIcons();
-      return;
-    }
-
-    userRentalsTableBody.innerHTML = rentals.map(r => {
-      let badgeClass = 'badge-pending';
-      let statusText = 'Pendente';
-      if (r.status === 'approved') {
-        badgeClass = 'badge-approved';
-        statusText = 'Aprovado (Pronto para Retirar)';
-      } else if (r.status === 'rejected') {
-        badgeClass = 'badge-rejected';
-        statusText = 'Solicitação Rejeitada';
-      } else if (r.status === 'active') {
-        badgeClass = 'badge-active';
-        statusText = 'Em Empréstimo';
+      if (rentals.length === 0) {
+        userRentalsTableBody.innerHTML = `
+          <tr>
+            <td colspan="7" class="empty-state">
+              <i data-lucide="inbox" style="width: 36px; height: 36px;"></i>
+              <p>Você ainda não possui nenhuma solicitação de aluguel.</p>
+            </td>
+          </tr>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+        return;
       }
 
-      return `
-        <tr>
-          <td><strong>${r.bookTitle}</strong></td>
-          <td>${formatDateBR(r.requestedAt)}</td>
-          <td>${formatDateBR(r.startDate)}</td>
-          <td>${r.durationDays} Dias</td>
-          <td>${formatDateBR(r.returnDate)}</td>
-          <td>${r.locationName}</td>
-          <td><span class="badge-status ${badgeClass}">${statusText}</span></td>
-        </tr>
-      `;
-    }).join('');
+      userRentalsTableBody.innerHTML = rentals.map(r => {
+        let badgeClass = 'badge-pending';
+        let statusText = 'Pendente';
+        if (r.status === 'approved') {
+          badgeClass = 'badge-approved';
+          statusText = 'Aprovado (Pronto para Retirar)';
+        } else if (r.status === 'rejected') {
+          badgeClass = 'badge-rejected';
+          statusText = 'Solicitação Rejeitada';
+        } else if (r.status === 'active') {
+          badgeClass = 'badge-active';
+          statusText = 'Em Empréstimo';
+        }
 
-    if (window.lucide) window.lucide.createIcons();
+        return `
+          <tr>
+            <td><strong>${r.book_title || r.bookTitle}</strong></td>
+            <td>${formatDateBR(r.created_at || r.requestedAt)}</td>
+            <td>${formatDateBR(r.start_date || r.startDate)}</td>
+            <td>${r.duration_days || r.durationDays} Dias</td>
+            <td>${formatDateBR(r.return_date || r.returnDate)}</td>
+            <td>${r.location_name || r.locationName}</td>
+            <td><span class="badge-status ${badgeClass}">${statusText}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+      showToast('Erro ao carregar seus aluguéis.', 'error');
+    }
   }
 
-  // Render Admin Dashboard
-  function renderAdminDashboard() {
+  async function renderAdminDashboard() {
     if (!isAdmin(currentUser)) {
       switchView('viewCatalog');
       return;
     }
 
-    const users = StorageManager.get('users');
-    const rentals = StorageManager.get('rentals');
-    const books = StorageManager.get('books');
-    const locations = StorageManager.get('locations');
-    const locMap = Object.fromEntries(locations.map(l => [l.id, l.name]));
+    try {
+      const stats = await API.getAdminStats();
+      const pendingUsers = await API.getPendingUsers();
+      const pendingRentals = await API.getPendingRentals();
+      const books = await API.getBooks();
+      const locations = await API.getLocations();
+      const locMap = Object.fromEntries(locations.map(l => [l.id, l.name]));
 
-    // Filter ONLY PENDING items for the approval panels so processed items vanish!
-    const pendingUsersList = users.filter(u => u.status === 'pending');
-    const pendingRentalsList = rentals.filter(r => r.status === 'pending');
-    const activeRentalsList = rentals.filter(r => r.status === 'approved' || r.status === 'active');
+      statPendingUsers.textContent = stats.pendingUsersCount;
+      statPendingRentals.textContent = stats.pendingRentalsCount;
+      statActiveRentals.textContent = stats.activeRentalsCount;
+      statTotalBooks.textContent = stats.totalBooksCount;
 
-    // Update Admin Stats
-    statPendingUsers.textContent = pendingUsersList.length;
-    statPendingRentals.textContent = pendingRentalsList.length;
-    statActiveRentals.textContent = activeRentalsList.length;
-    statTotalBooks.textContent = books.length;
+      // TAB 1: PENDING USERS ONLY
+      if (pendingUsers.length === 0) {
+        adminUsersTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="empty-state">
+              <i data-lucide="check-circle" style="width: 36px; height: 36px;"></i>
+              <p>Nenhuma solicitação de cadastro pendente no momento. Tudo em dia!</p>
+            </td>
+          </tr>
+        `;
+      } else {
+        adminUsersTableBody.innerHTML = pendingUsers.map(u => {
+          const userLoc = locMap[u.location_id || u.locationId] || 'Casa PF';
+          return `
+            <tr>
+              <td><strong>${u.name}</strong></td>
+              <td>${u.email}</td>
+              <td>${userLoc}</td>
+              <td>${formatDateBR(u.created_at || u.createdAt)}</td>
+              <td><span class="badge-status badge-pending">Pendente</span></td>
+              <td>
+                <div style="display: flex; gap: 0.4rem;">
+                  <button class="btn btn-success btn-sm approve-user-btn" data-user-id="${u.id}">
+                    <i data-lucide="check"></i> Aceitar
+                  </button>
+                  <button class="btn btn-danger btn-sm reject-user-btn" data-user-id="${u.id}">
+                    <i data-lucide="x"></i> Rejeitar
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
 
-    // Render Tab 1: Aprovação de Usuários (SHOW ONLY PENDING)
-    if (pendingUsersList.length === 0) {
-      adminUsersTableBody.innerHTML = `
-        <tr>
-          <td colspan="6" class="empty-state">
-            <i data-lucide="check-circle" style="width: 36px; height: 36px;"></i>
-            <p>Nenhuma solicitação de cadastro pendente no momento. Tudo em dia!</p>
-          </td>
-        </tr>
-      `;
-    } else {
-      adminUsersTableBody.innerHTML = pendingUsersList.map(u => {
-        const userLoc = locMap[u.locationId] || 'Casa PF';
+      // TAB 2: PENDING RENTALS ONLY
+      if (pendingRentals.length === 0) {
+        adminRentalsTableBody.innerHTML = `
+          <tr>
+            <td colspan="8" class="empty-state">
+              <i data-lucide="check-circle" style="width: 36px; height: 36px;"></i>
+              <p>Nenhuma solicitação de aluguel pendente no momento. Tudo em dia!</p>
+            </td>
+          </tr>
+        `;
+      } else {
+        adminRentalsTableBody.innerHTML = pendingRentals.map(r => {
+          return `
+            <tr>
+              <td><strong>${r.user_name || r.userName}</strong><br><small style="color:var(--text-muted);">${r.user_email || r.userEmail}</small></td>
+              <td><strong>${r.book_title || r.bookTitle}</strong></td>
+              <td>${formatDateBR(r.start_date || r.startDate)}</td>
+              <td>${r.duration_days || r.durationDays} Dias</td>
+              <td>${formatDateBR(r.return_date || r.returnDate)}</td>
+              <td>${r.location_name || r.locationName}</td>
+              <td><span class="badge-status badge-pending">Pendente</span></td>
+              <td>
+                <div style="display: flex; gap: 0.4rem;">
+                  <button class="btn btn-success btn-sm approve-rental-btn" data-rental-id="${r.id}">
+                    <i data-lucide="check"></i> Aceitar
+                  </button>
+                  <button class="btn btn-danger btn-sm reject-rental-btn" data-rental-id="${r.id}">
+                    <i data-lucide="x"></i> Rejeitar
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // TAB 3: MANAGE BOOKS
+      adminBooksTableBody.innerHTML = books.map(b => {
+        const locName = locMap[b.location_id || b.locationId] || 'Casa PF';
+        const avail = b.copies_available !== undefined ? b.copies_available : b.copiesAvailable;
+        const total = b.copies_total !== undefined ? b.copies_total : b.copiesTotal;
+
         return `
           <tr>
-            <td><strong>${u.name}</strong></td>
-            <td>${u.email}</td>
-            <td>${userLoc}</td>
-            <td>${formatDateBR(u.createdAt || '2026-07-27')}</td>
-            <td><span class="badge-status badge-pending">Pendente</span></td>
+            <td><strong>${b.title}</strong></td>
+            <td>${b.author}</td>
+            <td>${b.category}</td>
+            <td>${locName}</td>
+            <td>
+              <span style="font-weight:700; color: ${avail > 0 ? 'var(--status-approved-text)' : 'var(--status-rejected-text)'};">
+                ${avail}
+              </span> / ${total} disponíveis
+            </td>
             <td>
               <div style="display: flex; gap: 0.4rem;">
-                <button class="btn btn-success btn-sm approve-user-btn" data-user-id="${u.id}">
-                  <i data-lucide="check"></i> Aceitar
+                <button class="btn btn-secondary btn-sm edit-book-btn" data-book-id="${b.id}">
+                  <i data-lucide="edit-3"></i> Editar
                 </button>
-                <button class="btn btn-danger btn-sm reject-user-btn" data-user-id="${u.id}">
-                  <i data-lucide="x"></i> Rejeitar
+                <button class="btn btn-danger btn-sm delete-book-btn" data-book-id="${b.id}">
+                  <i data-lucide="trash-2"></i> Excluir
                 </button>
               </div>
             </td>
           </tr>
         `;
       }).join('');
+
+      // Listeners
+      document.querySelectorAll('.approve-user-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const uid = e.currentTarget.getAttribute('data-user-id');
+          handleUpdateUserStatus(uid, 'approved');
+        });
+      });
+
+      document.querySelectorAll('.reject-user-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const uid = e.currentTarget.getAttribute('data-user-id');
+          handleUpdateUserStatus(uid, 'rejected');
+        });
+      });
+
+      document.querySelectorAll('.approve-rental-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const rid = e.currentTarget.getAttribute('data-rental-id');
+          handleUpdateRentalStatus(rid, 'approved');
+        });
+      });
+
+      document.querySelectorAll('.reject-rental-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const rid = e.currentTarget.getAttribute('data-rental-id');
+          handleUpdateRentalStatus(rid, 'rejected');
+        });
+      });
+
+      document.querySelectorAll('.edit-book-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const bid = e.currentTarget.getAttribute('data-book-id');
+          openEditBookModal(bid);
+        });
+      });
+
+      document.querySelectorAll('.delete-book-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const bid = e.currentTarget.getAttribute('data-book-id');
+          handleDeleteBook(bid);
+        });
+      });
+
+      if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+      showToast('Erro ao carregar dados do painel admin.', 'error');
     }
-
-    // Render Tab 2: Aprovação de Aluguéis (SHOW ONLY PENDING)
-    if (pendingRentalsList.length === 0) {
-      adminRentalsTableBody.innerHTML = `
-        <tr>
-          <td colspan="8" class="empty-state">
-            <i data-lucide="check-circle" style="width: 36px; height: 36px;"></i>
-            <p>Nenhuma solicitação de aluguel pendente no momento. Tudo em dia!</p>
-          </td>
-        </tr>
-      `;
-    } else {
-      adminRentalsTableBody.innerHTML = pendingRentalsList.map(r => {
-        return `
-          <tr>
-            <td><strong>${r.userName}</strong><br><small style="color:var(--text-muted);">${r.userEmail}</small></td>
-            <td><strong>${r.bookTitle}</strong></td>
-            <td>${formatDateBR(r.startDate)}</td>
-            <td>${r.durationDays} Dias</td>
-            <td>${formatDateBR(r.returnDate)}</td>
-            <td>${r.locationName}</td>
-            <td><span class="badge-status badge-pending">Pendente</span></td>
-            <td>
-              <div style="display: flex; gap: 0.4rem;">
-                <button class="btn btn-success btn-sm approve-rental-btn" data-rental-id="${r.id}">
-                  <i data-lucide="check"></i> Aceitar
-                </button>
-                <button class="btn btn-danger btn-sm reject-rental-btn" data-rental-id="${r.id}">
-                  <i data-lucide="x"></i> Rejeitar
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    // Render Tab 3: Gerenciar Acervo (WITH EDIT & DELETE)
-    adminBooksTableBody.innerHTML = books.map(b => {
-      const locName = locMap[b.locationId] || 'Casa PF';
-      return `
-        <tr>
-          <td><strong>${b.title}</strong></td>
-          <td>${b.author}</td>
-          <td>${b.category}</td>
-          <td>${locName}</td>
-          <td>
-            <span style="font-weight:700; color: ${b.copiesAvailable > 0 ? 'var(--status-approved-text)' : 'var(--status-rejected-text)'};">
-              ${b.copiesAvailable}
-            </span> / ${b.copiesTotal} disponíveis
-          </td>
-          <td>
-            <div style="display: flex; gap: 0.4rem;">
-              <button class="btn btn-secondary btn-sm edit-book-btn" data-book-id="${b.id}">
-                <i data-lucide="edit-3"></i> Editar
-              </button>
-              <button class="btn btn-danger btn-sm delete-book-btn" data-book-id="${b.id}">
-                <i data-lucide="trash-2"></i> Excluir
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    // Attach Admin Event Listeners
-    document.querySelectorAll('.approve-user-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const uid = e.currentTarget.getAttribute('data-user-id');
-        updateUserStatus(uid, 'approved');
-      });
-    });
-
-    document.querySelectorAll('.reject-user-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const uid = e.currentTarget.getAttribute('data-user-id');
-        updateUserStatus(uid, 'rejected');
-      });
-    });
-
-    document.querySelectorAll('.approve-rental-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const rid = e.currentTarget.getAttribute('data-rental-id');
-        updateRentalStatus(rid, 'approved');
-      });
-    });
-
-    document.querySelectorAll('.reject-rental-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const rid = e.currentTarget.getAttribute('data-rental-id');
-        updateRentalStatus(rid, 'rejected');
-      });
-    });
-
-    document.querySelectorAll('.edit-book-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const bid = e.currentTarget.getAttribute('data-book-id');
-        openEditBookModal(bid);
-      });
-    });
-
-    document.querySelectorAll('.delete-book-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const bid = e.currentTarget.getAttribute('data-book-id');
-        deleteBook(bid);
-      });
-    });
-
-    if (window.lucide) window.lucide.createIcons();
   }
 
-  // --- ADMIN ACTIONS (SECURED & WITH REAL EMAIL NOTIFICATION) ---
-  function updateUserStatus(userId, newStatus) {
-    if (!isAdmin(currentUser)) {
-      showToast('Acesso negado! Operação permitida apenas para a administradora.', 'error');
-      return;
-    }
+  // --- ADMIN ACTIONS ---
+  async function handleUpdateUserStatus(userId, status) {
+    try {
+      const res = await API.updateUserStatus(userId, status);
+      showToast(res.message, status === 'approved' ? 'success' : 'error');
 
-    let users = StorageManager.get('users');
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex !== -1) {
-      const targetUser = users[userIndex];
-      targetUser.status = newStatus;
-      StorageManager.set('users', users);
-
-      showToast(`Cadastro de ${targetUser.name} foi ${newStatus === 'approved' ? 'ACEITO' : 'REJEITADO'}!`, newStatus === 'approved' ? 'success' : 'error');
-
-      // Send Email Notification on Acceptance
-      if (newStatus === 'approved') {
+      if (status === 'approved' && res.user) {
         const subject = '[Porta Fidei] Cadastro Aprovado com Sucesso!';
-        const bodyText = `Olá ${targetUser.name},\n\nSua conta na Biblioteca Porta Fidei foi APROVADA com sucesso pela administração!\n\nAgora você já pode realizar o login no site com seu e-mail (${targetUser.email}) e solicitar o aluguel de obras em nossas unidades (Casa PF e Samaria PF).\n\nSeja bem-vindo(a) à Porta Fidei!`;
-
-        triggerRealEmail(targetUser.email, subject, bodyText);
+        const bodyText = `Olá ${res.user.name},\n\nSua conta na Biblioteca Porta Fidei foi APROVADA com sucesso pela administração!\n\nAgora você já pode realizar o login no site com seu e-mail (${res.user.email}) e solicitar o aluguel de obras em nossas unidades (Casa PF e Samaria PF).\n\nSeja bem-vindo(a) à Porta Fidei!`;
+        triggerRealEmail(res.user.email, subject, bodyText);
       }
 
-      updateAuthUI();
-      renderAdminDashboard();
+      await updateAuthUI();
+      await renderAdminDashboard();
+    } catch (err) {
+      showToast(err.message || 'Erro ao atualizar status do usuário.', 'error');
     }
   }
 
-  function updateRentalStatus(rentalId, newStatus) {
-    if (!isAdmin(currentUser)) {
-      showToast('Acesso negado! Operação permitida apenas para a administradora.', 'error');
-      return;
-    }
+  async function handleUpdateRentalStatus(rentalId, status) {
+    try {
+      const res = await API.updateRentalStatus(rentalId, status);
+      showToast(res.message, status === 'approved' ? 'success' : 'error');
 
-    let rentals = StorageManager.get('rentals');
-    const rentalIndex = rentals.findIndex(r => r.id === rentalId);
-    if (rentalIndex !== -1) {
-      const rental = rentals[rentalIndex];
-      const oldStatus = rental.status;
-      rental.status = newStatus;
-      StorageManager.set('rentals', rentals);
-
-      // Adjust book stock if approving
-      if (newStatus === 'approved' && oldStatus !== 'approved') {
-        let books = StorageManager.get('books');
-        const bookIndex = books.findIndex(b => b.id === rental.bookId);
-        if (bookIndex !== -1 && books[bookIndex].copiesAvailable > 0) {
-          books[bookIndex].copiesAvailable -= 1;
-          StorageManager.set('books', books);
-        }
-      } else if (newStatus === 'rejected' && oldStatus === 'approved') {
-        let books = StorageManager.get('books');
-        const bookIndex = books.findIndex(b => b.id === rental.bookId);
-        if (bookIndex !== -1) {
-          books[bookIndex].copiesAvailable += 1;
-          StorageManager.set('books', books);
-        }
-      }
-
-      showToast(`Aluguel do livro "${rental.bookTitle}" foi ${newStatus === 'approved' ? 'ACEITO' : 'REJEITADO'}!`, newStatus === 'approved' ? 'success' : 'error');
-
-      // Send Email Notification on Acceptance
-      if (newStatus === 'approved') {
+      if (status === 'approved' && res.rental) {
+        const r = res.rental;
         const subject = '[Porta Fidei] Solicitação de Aluguel Aprovada!';
-        const bodyText = `Olá ${rental.userName},\n\nSua solicitação de aluguel do livro "${rental.bookTitle}" foi APROVADA pela administração!\n\n📍 Unidade de Retirada: ${rental.locationName}\n📅 Dia da Retirada (Início): ${formatDateBR(rental.startDate)}\n⏱️ Tempo de Empréstimo: ${rental.durationDays} Dias\n📅 Data Prevista de Devolução: ${formatDateBR(rental.returnDate)}\n\nApresente este e-mail na unidade selecionada para retirar seu livro. Bom estudo e leitura!`;
+        const bodyText = `Olá ${r.user_name || r.userName},\n\nSua solicitação de aluguel do livro "${r.book_title || r.bookTitle}" foi APROVADA pela administração!\n\n📍 Unidade de Retirada: ${r.location_name || r.locationName}\n📅 Dia da Retirada (Início): ${formatDateBR(r.start_date || r.startDate)}\n⏱️ Tempo de Empréstimo: ${r.duration_days || r.durationDays} Dias\n📅 Data Prevista de Devolução: ${formatDateBR(r.return_date || r.returnDate)}\n\nApresente este e-mail na unidade selecionada para retirar seu livro. Bom estudo e leitura!`;
 
-        triggerRealEmail(rental.userEmail, subject, bodyText);
+        triggerRealEmail(r.user_email || r.userEmail, subject, bodyText);
       }
 
-      updateAuthUI();
-      renderAdminDashboard();
+      await updateAuthUI();
+      await renderAdminDashboard();
+    } catch (err) {
+      showToast(err.message || 'Erro ao atualizar aluguel.', 'error');
     }
   }
 
-  // EDIT BOOK MODAL HANDLERS
-  function openEditBookModal(bookId) {
-    if (!isAdmin(currentUser)) return;
+  async function openEditBookModal(bookId) {
+    try {
+      const books = await API.getBooks();
+      const book = books.find(b => b.id === bookId);
+      if (!book) return;
 
-    const books = StorageManager.get('books');
-    const book = books.find(b => b.id === bookId);
-    if (!book) return;
+      await populateLocationDropdowns();
 
-    populateLocationDropdowns();
+      editBookId.value = book.id;
+      editBookTitle.value = book.title;
+      editBookAuthor.value = book.author;
+      editBookCategory.value = book.category;
+      editBookLocation.value = book.location_id || book.locationId;
+      editBookCopiesTotal.value = book.copies_total !== undefined ? book.copies_total : book.copiesTotal;
+      editBookCopiesAvailable.value = book.copies_available !== undefined ? book.copies_available : book.copiesAvailable;
 
-    editBookId.value = book.id;
-    editBookTitle.value = book.title;
-    editBookAuthor.value = book.author;
-    editBookCategory.value = book.category;
-    editBookLocation.value = book.locationId;
-    editBookCopiesTotal.value = book.copiesTotal;
-    editBookCopiesAvailable.value = book.copiesAvailable;
-
-    editBookModal.classList.add('open');
+      editBookModal.classList.add('open');
+    } catch (err) {
+      showToast('Erro ao carregar dados do livro.', 'error');
+    }
   }
 
   function closeEditBookModal() {
     if (editBookModal) editBookModal.classList.remove('open');
   }
 
-  function deleteBook(bookId) {
-    if (!isAdmin(currentUser)) {
-      showToast('Acesso negado! Operação permitida apenas para a administradora.', 'error');
-      return;
+  async function handleDeleteBook(bookId) {
+    try {
+      await API.deleteBook(bookId);
+      showToast('Livro excluído com sucesso!', 'info');
+      await renderAdminDashboard();
+      await renderCatalog();
+    } catch (err) {
+      showToast(err.message || 'Erro ao excluir livro.', 'error');
     }
-
-    let books = StorageManager.get('books');
-    const updated = books.filter(b => b.id !== bookId);
-    StorageManager.set('books', updated);
-    showToast('Livro removido do acervo com sucesso!', 'info');
-    renderAdminDashboard();
-    renderCatalog();
   }
 
   // --- RENTAL MODAL HANDLERS ---
-  function openRentalModal(bookId) {
+  async function openRentalModal(bookId) {
     if (!currentUser) {
       showToast('Você precisa fazer login para solicitar um aluguel.', 'info');
       switchView('viewAuth');
@@ -846,24 +781,28 @@
       return;
     }
 
-    const books = StorageManager.get('books');
-    const book = books.find(b => b.id === bookId);
-    if (!book) return;
+    try {
+      const books = await API.getBooks();
+      const book = books.find(b => b.id === bookId);
+      if (!book) return;
 
-    modalBookId.value = book.id;
-    modalBookTitle.textContent = book.title;
-    modalBookAuthor.textContent = `por ${book.author}`;
+      modalBookId.value = book.id;
+      modalBookTitle.textContent = book.title;
+      modalBookAuthor.textContent = `por ${book.author}`;
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    rentalStartDate.value = tomorrowStr;
-    rentalStartDate.min = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      rentalStartDate.value = tomorrowStr;
+      rentalStartDate.min = new Date().toISOString().split('T')[0];
 
-    rentalLocation.value = book.locationId;
+      rentalLocation.value = book.location_id || book.locationId;
 
-    updateModalReturnDate();
-    rentalModal.classList.add('open');
+      updateModalReturnDate();
+      rentalModal.classList.add('open');
+    } catch (err) {
+      showToast('Erro ao abrir formulário de aluguel.', 'error');
+    }
   }
 
   function updateModalReturnDate() {
@@ -886,77 +825,54 @@
   }
 
   // --- AUTH HANDLERS ---
-  function handleLogin(e) {
+  async function handleLogin(e) {
     if (e && e.preventDefault) e.preventDefault();
 
-    const inputIdentifier = loginForm.loginEmail.value.trim().toLowerCase();
+    const identifier = loginForm.loginEmail.value.trim();
     const password = loginForm.loginPassword.value.trim();
 
-    const users = StorageManager.get('users');
+    try {
+      const user = await API.login(identifier, password);
 
-    const user = users.find(u => {
-      const userEmail = (u.email || '').toLowerCase();
-      const userName = (u.username || '').toLowerCase();
-      return (userEmail === inputIdentifier || userName === inputIdentifier) && u.password === password;
-    });
+      if (user.role === 'user' && user.status === 'pending') {
+        showToast('⚠️ Sua conta foi registrada, mas ainda aguarda aprovação da Administração.', 'info');
+      }
 
-    if (!user) {
-      showToast('Usuário/E-mail ou senha incorretos.', 'error');
-      return;
-    }
+      await updateAuthUI();
+      showToast(`Bem-vindo(a), ${user.name}!`, 'success');
 
-    if (user.role === 'user' && user.status === 'pending') {
-      showToast('⚠️ Sua conta foi registrada, mas ainda aguarda aprovação da Administração.', 'info');
-    }
-
-    StorageManager.setCurrentUser(user);
-    updateAuthUI();
-    showToast(`Bem-vindo(a), ${user.name}!`, 'success');
-
-    if (isAdmin(user)) {
-      switchView('viewAdminDashboard');
-    } else {
-      switchView('viewCatalog');
+      if (isAdmin(user)) {
+        switchView('viewAdminDashboard');
+      } else {
+        switchView('viewCatalog');
+      }
+    } catch (err) {
+      showToast(err.message || 'Usuário/E-mail ou senha incorretos.', 'error');
     }
   }
 
-  function handleSignup(e) {
+  async function handleSignup(e) {
     e.preventDefault();
 
     const name = signupForm.signupName.value.trim();
     const email = signupForm.signupEmail.value.trim();
     const password = signupForm.signupPassword.value.trim();
-    const locationId = signupForm.signupLocation.value;
+    const location_id = signupForm.signupLocation.value;
 
-    let users = StorageManager.get('users');
-    if (users.some(u => u.email.toLowerCase() === email.toLowerCase() || (u.username && u.username.toLowerCase() === email.toLowerCase()))) {
-      showToast('Este e-mail ou nome de usuário já está cadastrado.', 'error');
-      return;
+    try {
+      const res = await API.register({ name, email, password, location_id });
+      showToast(res.message, 'success');
+
+      signupForm.reset();
+      authTabLogin.click();
+    } catch (err) {
+      showToast(err.message || 'Erro ao enviar cadastro.', 'error');
     }
-
-    const newUser = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      username: email.split('@')[0],
-      password,
-      role: 'user',
-      status: 'pending',
-      locationId,
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-
-    users.push(newUser);
-    StorageManager.set('users', users);
-
-    showToast('Solicitação de cadastro enviada com sucesso! A administração irá analisar e aprovar sua conta.', 'success');
-
-    signupForm.reset();
-    authTabLogin.click();
   }
 
   function handleLogout() {
-    StorageManager.setCurrentUser(null);
+    API.setToken(null);
+    API.setCurrentUser(null);
     updateAuthUI();
     showToast('Você saiu da sua conta.', 'info');
     switchView('viewCatalog');
@@ -964,13 +880,11 @@
 
   // --- EVENT LISTENERS INITIALIZATION ---
   function initEventListeners() {
-    // Navigation
     navBrand.addEventListener('click', () => switchView('viewCatalog'));
     navCatalogBtn.addEventListener('click', () => switchView('viewCatalog'));
     navMyRentalsBtn.addEventListener('click', () => switchView('viewUserDashboard'));
     navAdminBtn.addEventListener('click', () => switchView('viewAdminDashboard'));
 
-    // Theme Toggle
     themeToggleBtn.addEventListener('click', () => {
       document.body.classList.toggle('light-theme');
       const isLight = document.body.classList.contains('light-theme');
@@ -978,7 +892,6 @@
       if (window.lucide) window.lucide.createIcons();
     });
 
-    // Auth Tabs
     authTabLogin.addEventListener('click', () => {
       authTabLogin.classList.add('active');
       authTabSignup.classList.remove('active');
@@ -993,11 +906,9 @@
       loginForm.style.display = 'none';
     });
 
-    // Forms
     loginForm.addEventListener('submit', handleLogin);
     signupForm.addEventListener('submit', handleSignup);
 
-    // Admin Tabs
     adminTabUsers.addEventListener('click', () => {
       adminTabUsers.classList.add('active');
       adminTabRentals.classList.remove('active');
@@ -1025,8 +936,7 @@
       adminTabRentalsContent.style.display = 'none';
     });
 
-    // Add Book Form
-    addBookForm.addEventListener('submit', (e) => {
+    addBookForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       if (!isAdmin(currentUser)) {
@@ -1037,57 +947,55 @@
       const title = document.getElementById('newBookTitle').value.trim();
       const author = document.getElementById('newBookAuthor').value.trim();
       const category = document.getElementById('newBookCategory').value;
-      const locationId = document.getElementById('newBookLocation').value;
-      const copiesTotal = parseInt(document.getElementById('newBookCopies').value, 10);
+      const location_id = document.getElementById('newBookLocation').value;
+      const copies_total = parseInt(document.getElementById('newBookCopies').value, 10);
 
-      let books = StorageManager.get('books');
-      const newBook = {
-        id: `book-${Date.now()}`,
-        title,
-        author,
-        category,
-        cover: 'assets/confissoes.png',
-        locationId,
-        copiesAvailable: copiesTotal,
-        copiesTotal
-      };
+      try {
+        await API.addBook({
+          title,
+          author,
+          category,
+          cover: 'assets/confissoes.png',
+          location_id,
+          copies_total
+        });
 
-      books.push(newBook);
-      StorageManager.set('books', books);
-      showToast(`Livro "${title}" cadastrado com sucesso!`, 'success');
-      addBookForm.reset();
-      renderAdminDashboard();
-      renderCatalog();
+        showToast(`Livro "${title}" cadastrado com sucesso!`, 'success');
+        addBookForm.reset();
+        await renderAdminDashboard();
+        await renderCatalog();
+      } catch (err) {
+        showToast(err.message || 'Erro ao cadastrar livro.', 'error');
+      }
     });
 
-    // Edit Book Form Submit Listener
     if (editBookForm) {
-      editBookForm.addEventListener('submit', (e) => {
+      editBookForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         if (!isAdmin(currentUser)) return;
 
         const bookId = editBookId.value;
-        let books = StorageManager.get('books');
-        const index = books.findIndex(b => b.id === bookId);
-        if (index === -1) return;
+        try {
+          await API.updateBook(bookId, {
+            title: editBookTitle.value.trim(),
+            author: editBookAuthor.value.trim(),
+            category: editBookCategory.value,
+            location_id: editBookLocation.value,
+            copies_total: parseInt(editBookCopiesTotal.value, 10),
+            copies_available: parseInt(editBookCopiesAvailable.value, 10)
+          });
 
-        books[index].title = editBookTitle.value.trim();
-        books[index].author = editBookAuthor.value.trim();
-        books[index].category = editBookCategory.value;
-        books[index].locationId = editBookLocation.value;
-        books[index].copiesTotal = parseInt(editBookCopiesTotal.value, 10);
-        books[index].copiesAvailable = parseInt(editBookCopiesAvailable.value, 10);
-
-        StorageManager.set('books', books);
-        closeEditBookModal();
-        showToast('Livro atualizado com sucesso!', 'success');
-        renderAdminDashboard();
-        renderCatalog();
+          closeEditBookModal();
+          showToast('Livro atualizado com sucesso!', 'success');
+          await renderAdminDashboard();
+          await renderCatalog();
+        } catch (err) {
+          showToast(err.message || 'Erro ao atualizar livro.', 'error');
+        }
       });
     }
 
-    // Modal Close Listeners
     rentalStartDate.addEventListener('change', updateModalReturnDate);
     rentalDurationDays.addEventListener('change', updateModalReturnDate);
     closeModalBtn.addEventListener('click', closeRentalModal);
@@ -1099,50 +1007,33 @@
     if (closeEmailModalBtn) closeEmailModalBtn.addEventListener('click', closeEmailModal);
     if (confirmEmailModalBtn) confirmEmailModalBtn.addEventListener('click', closeEmailModal);
 
-    rentalRequestForm.addEventListener('submit', (e) => {
+    rentalRequestForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       if (!currentUser) return;
 
-      const bookId = modalBookId.value;
-      const books = StorageManager.get('books');
-      const book = books.find(b => b.id === bookId);
-      if (!book) return;
+      const book_id = modalBookId.value;
+      const start_date = rentalStartDate.value;
+      const duration_days = parseInt(rentalDurationDays.value, 10);
+      const location_id = rentalLocation.value;
 
-      const startDate = rentalStartDate.value;
-      const durationDays = parseInt(rentalDurationDays.value, 10);
-      const returnDate = calculateReturnDate(startDate, durationDays);
-      const locId = rentalLocation.value;
-      const locations = StorageManager.get('locations');
-      const loc = locations.find(l => l.id === locId);
+      try {
+        await API.createRental({
+          book_id,
+          start_date,
+          duration_days,
+          location_id
+        });
 
-      const newRental = {
-        id: `rent-${Date.now()}`,
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        bookId: book.id,
-        bookTitle: book.title,
-        startDate,
-        durationDays,
-        returnDate,
-        locationId: locId,
-        locationName: loc ? loc.name : 'Casa PF',
-        status: 'pending',
-        requestedAt: new Date().toISOString().split('T')[0]
-      };
-
-      let rentals = StorageManager.get('rentals');
-      rentals.push(newRental);
-      StorageManager.set('rentals', rentals);
-
-      closeRentalModal();
-      showToast('Solicitação de aluguel enviada com sucesso! Aguarde a aprovação da Administração.', 'success');
-      updateAuthUI();
-      switchView('viewUserDashboard');
+        closeRentalModal();
+        showToast('Solicitação de aluguel enviada com sucesso! Aguarde a aprovação da Administração.', 'success');
+        await updateAuthUI();
+        switchView('viewUserDashboard');
+      } catch (err) {
+        showToast(err.message || 'Erro ao enviar solicitação.', 'error');
+      }
     });
 
-    // Search and Filter Events
     globalSearchInput.addEventListener('input', renderCatalog);
     globalLocationSelect.addEventListener('change', renderCatalog);
     categoryFilterSelect.addEventListener('change', renderCatalog);
@@ -1150,11 +1041,11 @@
   }
 
   // --- INITIALIZATION ---
-  document.addEventListener('DOMContentLoaded', () => {
-    populateLocationDropdowns();
+  document.addEventListener('DOMContentLoaded', async () => {
+    await populateLocationDropdowns();
     initEventListeners();
-    updateAuthUI();
-    renderCatalog();
+    await updateAuthUI();
+    await renderCatalog();
 
     if (window.lucide) {
       window.lucide.createIcons();

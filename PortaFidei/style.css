@@ -10,7 +10,7 @@
   --bg-surface: #141923;
   --bg-surface-elevated: #1C2331;
   --bg-glass: rgba(20, 25, 35, 0.85);
-  
+
   --primary-gold: #D4AF37;
   --primary-gold-hover: #E5BE3E;
   --gold-glow: rgba(212, 175, 55, 0.25);
@@ -75,7 +75,9 @@ body.light-theme {
 }
 
 /* Reset & Base */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -99,7 +101,11 @@ body {
 }
 
 /* Typography Helpers */
-h1, h2, h3, h4, .font-serif {
+h1,
+h2,
+h3,
+h4,
+.font-serif {
   font-family: var(--font-serif);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -191,7 +197,8 @@ h1, h2, h3, h4, .font-serif {
   gap: 0.4rem;
 }
 
-.nav-link-btn:hover, .nav-link-btn.active {
+.nav-link-btn:hover,
+.nav-link-btn.active {
   color: var(--primary-gold);
   background: rgba(212, 175, 55, 0.08);
 }
@@ -250,7 +257,7 @@ h1, h2, h3, h4, .font-serif {
   text-align: center;
   padding: 3rem 1.5rem;
   background: linear-gradient(180deg, rgba(11, 14, 20, 0.5) 0%, rgba(11, 14, 20, 0.95) 100%),
-              url('assets/hero-banner.png') center/cover no-repeat;
+    url('assets/hero-banner.png') center/cover no-repeat;
 }
 
 .hero-content {
@@ -276,7 +283,7 @@ h1, h2, h3, h4, .font-serif {
   font-size: 2.5rem;
   color: #FFFFFF;
   margin-bottom: 0.75rem;
-  text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
 }
 
 .hero-subtitle {
@@ -357,8 +364,15 @@ h1, h2, h3, h4, .font-serif {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Section Titles */
@@ -866,7 +880,7 @@ h1, h2, h3, h4, .font-serif {
   color: var(--text-primary);
   padding: 0.85rem 1.25rem;
   border-radius: var(--radius-md);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -875,13 +889,28 @@ h1, h2, h3, h4, .font-serif {
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(50px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.toast.success { border-color: #10B981; }
-.toast.error { border-color: #EF4444; }
-.toast.info { border-color: var(--primary-gold); }
+.toast.success {
+  border-color: #10B981;
+}
+
+.toast.error {
+  border-color: #EF4444;
+}
+
+.toast.info {
+  border-color: var(--primary-gold);
+}
 
 /* Empty state */
 .empty-state {
