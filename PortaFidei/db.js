@@ -183,13 +183,17 @@ const Repository = {
   // RENTALS (Admin registra diretamente)
   // --------------------------------------------------------------------
   async getRentals({ status, book_id } = {}) {
-    let query = supabaseAdmin.from('rentals').select('*, books(title, author)');
+    let query = supabaseAdmin.from('rentals').select('*, books(title, author), profiles(name, username)');
     if (status && status !== 'ALL') query = query.eq('status', status);
     if (book_id) query = query.eq('book_id', book_id);
 
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
-    return data;
+
+    return (data || []).map(r => ({
+      ...r,
+      renter_name: r.renter_name || r.profiles?.name || 'Locatário'
+    }));
   },
 
   async createRental({ book_id, renter_name, renter_contact, start_date, duration_days, location_id }) {
@@ -203,22 +207,53 @@ const Repository = {
     d.setDate(d.getDate() + parseInt(duration_days, 10));
     const return_date = d.toISOString().split('T')[0];
 
-    // Inserir aluguel
-    const { data, error } = await supabaseAdmin
-      .from('rentals')
-      .insert([{
-        book_id,
-        renter_name: renter_name.trim(),
-        renter_contact: (renter_contact || '').trim(),
-        start_date,
-        duration_days: parseInt(duration_days, 10),
-        return_date,
-        location_id: location_id || book.location_id,
-        status: 'active'
-      }])
-      .select('*, books(title, author)')
-      .single();
-    if (error) throw error;
+    let insertedData = null;
+
+    // Tenta primeiro o schema novo (com renter_name e renter_contact)
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('rentals')
+        .insert([{
+          book_id,
+          renter_name: renter_name.trim(),
+          renter_contact: (renter_contact || '').trim(),
+          start_date,
+          duration_days: parseInt(duration_days, 10),
+          return_date,
+          location_id: location_id || book.location_id,
+          status: 'active'
+        }])
+        .select('*, books(title, author)')
+        .single();
+
+      if (error) throw error;
+      insertedData = data;
+    } catch (err) {
+      // Se der erro de coluna não encontrada (schema antigo com user_id), usar fallback
+      if (err.code === 'PGRST204' || err.message?.includes('schema cache')) {
+        const { data: profiles } = await supabaseAdmin.from('profiles').select('id').limit(1);
+        const fallbackUserId = profiles?.[0]?.id || null;
+
+        const { data: fallbackData, error: fallbackError } = await supabaseAdmin
+          .from('rentals')
+          .insert([{
+            book_id,
+            user_id: fallbackUserId,
+            start_date,
+            duration_days: parseInt(duration_days, 10),
+            return_date,
+            location_id: location_id || book.location_id,
+            status: 'active'
+          }])
+          .select('*, books(title, author)')
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        insertedData = { ...fallbackData, renter_name: renter_name.trim() };
+      } else {
+        throw err;
+      }
+    }
 
     // Decrementar exemplares disponíveis
     await supabaseAdmin
@@ -226,7 +261,7 @@ const Repository = {
       .update({ copies_available: book.copies_available - 1 })
       .eq('id', book_id);
 
-    return data;
+    return insertedData;
   },
 
   async returnRental(rentalId) {
@@ -241,19 +276,36 @@ const Repository = {
     if (rental.status === 'returned') throw new Error('Este aluguel já foi devolvido.');
 
     const today = new Date().toISOString().split('T')[0];
+    let updated = null;
 
-    // Atualizar status para devolvido
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from('rentals')
-      .update({
-        status: 'returned',
-        actual_return_date: today
-      })
-      .eq('id', rentalId)
-      .select('*, books(title, author)')
-      .single();
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('rentals')
+        .update({
+          status: 'returned',
+          actual_return_date: today
+        })
+        .eq('id', rentalId)
+        .select('*, books(title, author)')
+        .single();
 
-    if (updateError) throw updateError;
+      if (error) throw error;
+      updated = data;
+    } catch (err) {
+      if (err.code === 'PGRST204' || err.message?.includes('schema cache')) {
+        const { data: fallbackData, error: fallbackError } = await supabaseAdmin
+          .from('rentals')
+          .update({ status: 'returned' })
+          .eq('id', rentalId)
+          .select('*, books(title, author)')
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        updated = fallbackData;
+      } else {
+        throw err;
+      }
+    }
 
     // Incrementar exemplares disponíveis (sem exceder copies_total)
     const book = await this.getBookById(rental.book_id);

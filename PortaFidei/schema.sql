@@ -37,6 +37,12 @@ CREATE TABLE IF NOT EXISTS public.rentals (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
+-- Migrações/Alterações caso a tabela 'rentals' já exista com schema antigo:
+ALTER TABLE public.rentals ADD COLUMN IF NOT EXISTS renter_name TEXT;
+ALTER TABLE public.rentals ADD COLUMN IF NOT EXISTS renter_contact TEXT DEFAULT '';
+ALTER TABLE public.rentals ADD COLUMN IF NOT EXISTS actual_return_date DATE;
+ALTER TABLE public.rentals ALTER COLUMN user_id DROP NOT NULL;
+
 -- ==========================================================================
 -- SEED DATA INICIAL
 -- ==========================================================================
