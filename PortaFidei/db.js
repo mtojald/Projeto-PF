@@ -179,28 +179,6 @@ const Repository = {
     return unique;
   },
 
-  // Helper para persistência local de metadados de aluguéis (fallback quando Supabase não tem as colunas)
-  getRentalMeta() {
-    try {
-      const metaPath = path.join(__dirname, 'rentals_meta.json');
-      if (fs.existsSync(metaPath)) {
-        return JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-      }
-    } catch {}
-    return {};
-  },
-
-  saveRentalMeta(id, meta) {
-    try {
-      const metaPath = path.join(__dirname, 'rentals_meta.json');
-      const data = this.getRentalMeta();
-      data[id] = { ...data[id], ...meta };
-      fs.writeFileSync(metaPath, JSON.stringify(data, null, 2), 'utf8');
-    } catch (err) {
-      console.error('Erro ao salvar metadados do aluguel:', err);
-    }
-  },
-
   // --------------------------------------------------------------------
   // RENTALS (Admin registra diretamente)
   // --------------------------------------------------------------------
@@ -212,11 +190,10 @@ const Repository = {
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
 
-    const meta = this.getRentalMeta();
     return (data || []).map(r => ({
       ...r,
-      renter_name: r.renter_name || meta[r.id]?.renter_name || r.profiles?.name || 'Locatário',
-      renter_contact: r.renter_contact || meta[r.id]?.renter_contact || '-'
+      renter_name: r.renter_name || r.profiles?.name || 'Locatário',
+      renter_contact: r.renter_contact || '-'
     }));
   },
 
@@ -231,9 +208,8 @@ const Repository = {
     d.setDate(d.getDate() + parseInt(duration_days, 10));
     const return_date = d.toISOString().split('T')[0];
 
+    // Tentar salvar no Supabase com renter_name e renter_contact
     let insertedData = null;
-
-    // Tenta primeiro o schema novo (com renter_name e renter_contact)
     try {
       const { data, error } = await supabaseAdmin
         .from('rentals')
@@ -253,40 +229,10 @@ const Repository = {
       if (error) throw error;
       insertedData = data;
     } catch (err) {
-      // Se der erro de coluna não encontrada (schema antigo com user_id), usar fallback
       if (err.code === 'PGRST204' || err.message?.includes('schema cache')) {
-        const { data: profiles } = await supabaseAdmin.from('profiles').select('id').limit(1);
-        const fallbackUserId = profiles?.[0]?.id || null;
-
-        const { data: fallbackData, error: fallbackError } = await supabaseAdmin
-          .from('rentals')
-          .insert([{
-            book_id,
-            user_id: fallbackUserId,
-            start_date,
-            duration_days: parseInt(duration_days, 10),
-            return_date,
-            location_id: location_id || book.location_id,
-            status: 'active'
-          }])
-          .select('*, books(title, author)')
-          .single();
-
-        if (fallbackError) throw fallbackError;
-
-        this.saveRentalMeta(fallbackData.id, {
-          renter_name: renter_name.trim(),
-          renter_contact: (renter_contact || '').trim()
-        });
-
-        insertedData = {
-          ...fallbackData,
-          renter_name: renter_name.trim(),
-          renter_contact: (renter_contact || '').trim()
-        };
-      } else {
-        throw err;
+        throw new Error('A tabela "rentals" no Supabase precisa das colunas "renter_name" e "renter_contact". Execute o script SQL de migração no Supabase Dashboard.');
       }
+      throw err;
     }
 
     // Decrementar exemplares disponíveis
