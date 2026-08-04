@@ -179,6 +179,28 @@ const Repository = {
     return unique;
   },
 
+  // Helper para persistência local de metadados de aluguéis (fallback quando Supabase não tem as colunas)
+  getRentalMeta() {
+    try {
+      const metaPath = path.join(__dirname, 'rentals_meta.json');
+      if (fs.existsSync(metaPath)) {
+        return JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      }
+    } catch {}
+    return {};
+  },
+
+  saveRentalMeta(id, meta) {
+    try {
+      const metaPath = path.join(__dirname, 'rentals_meta.json');
+      const data = this.getRentalMeta();
+      data[id] = { ...data[id], ...meta };
+      fs.writeFileSync(metaPath, JSON.stringify(data, null, 2), 'utf8');
+    } catch (err) {
+      console.error('Erro ao salvar metadados do aluguel:', err);
+    }
+  },
+
   // --------------------------------------------------------------------
   // RENTALS (Admin registra diretamente)
   // --------------------------------------------------------------------
@@ -190,9 +212,11 @@ const Repository = {
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
 
+    const meta = this.getRentalMeta();
     return (data || []).map(r => ({
       ...r,
-      renter_name: r.renter_name || r.profiles?.name || 'Locatário'
+      renter_name: r.renter_name || meta[r.id]?.renter_name || r.profiles?.name || 'Locatário',
+      renter_contact: r.renter_contact || meta[r.id]?.renter_contact || '-'
     }));
   },
 
@@ -249,7 +273,17 @@ const Repository = {
           .single();
 
         if (fallbackError) throw fallbackError;
-        insertedData = { ...fallbackData, renter_name: renter_name.trim() };
+
+        this.saveRentalMeta(fallbackData.id, {
+          renter_name: renter_name.trim(),
+          renter_contact: (renter_contact || '').trim()
+        });
+
+        insertedData = {
+          ...fallbackData,
+          renter_name: renter_name.trim(),
+          renter_contact: (renter_contact || '').trim()
+        };
       } else {
         throw err;
       }
