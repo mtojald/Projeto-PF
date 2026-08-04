@@ -179,10 +179,40 @@ const Repository = {
     return unique;
   },
 
+  // Deleta do banco de dados aluguéis com status 'returned' com mais de 7 dias (1 semana)
+  async cleanupOldReturnedRentals() {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const isoDate = sevenDaysAgo.toISOString().split('T')[0];
+      const isoTimestamp = sevenDaysAgo.toISOString();
+
+      await supabaseAdmin
+        .from('rentals')
+        .delete()
+        .eq('status', 'returned')
+        .or(`actual_return_date.lte.${isoDate},created_at.lte.${isoTimestamp}`);
+    } catch {
+      try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const isoTimestamp = sevenDaysAgo.toISOString();
+
+        await supabaseAdmin
+          .from('rentals')
+          .delete()
+          .eq('status', 'returned')
+          .lte('created_at', isoTimestamp);
+      } catch {}
+    }
+  },
+
   // --------------------------------------------------------------------
   // RENTALS (Admin registra diretamente)
   // --------------------------------------------------------------------
   async getRentals({ status, book_id } = {}) {
+    await this.cleanupOldReturnedRentals();
+
     let query = supabaseAdmin.from('rentals').select('*, books(title, author), profiles(name, username)');
     if (status && status !== 'ALL') query = query.eq('status', status);
     if (book_id) query = query.eq('book_id', book_id);
@@ -304,6 +334,7 @@ const Repository = {
   // STATS (Admin Dashboard)
   // --------------------------------------------------------------------
   async getAdminStats() {
+    await this.cleanupOldReturnedRentals();
     const { data: books } = await supabaseAdmin.from('books').select('copies_available, copies_total');
     const { data: activeRentals } = await supabaseAdmin.from('rentals').select('id').eq('status', 'active');
     const { data: overdueRentals } = await supabaseAdmin.from('rentals').select('id').eq('status', 'overdue');
