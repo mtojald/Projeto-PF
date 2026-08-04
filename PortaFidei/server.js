@@ -101,6 +101,16 @@ app.get('/api/books/authors', async (req, res) => {
   }
 });
 
+// 4.5. BOOKS: Get distinct categories (público — filtro e formulários)
+app.get('/api/books/categories', async (req, res) => {
+  try {
+    const categories = await db.getDistinctCategories();
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar categorias.' });
+  }
+});
+
 // 5. BOOKS: Check duplicate title
 app.get('/api/books/check-duplicate', authenticateToken, async (req, res) => {
   try {

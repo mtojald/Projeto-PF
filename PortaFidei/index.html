@@ -252,7 +252,11 @@
                   <option value="Teologia">Teologia</option>
                   <option value="Filosofia">Filosofia</option>
                   <option value="História">História</option>
+                  <option value="new_custom">➕ Criar Nova Categoria...</option>
                 </select>
+                <div id="newCategoryCustomWrapper" style="margin-top: 0.5rem; display: none;">
+                  <input type="text" id="newBookCategoryCustom" class="form-control" placeholder="Digite o nome da nova categoria (ex: Patrística)">
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">Unidade de Localização</label>
@@ -332,7 +336,11 @@
             <option value="14" selected>14 Dias (2 Semanas)</option>
             <option value="21">21 Dias (3 Semanas)</option>
             <option value="30">30 Dias (1 Mês)</option>
+            <option value="custom">✏️ Personalizado (1 a 365 dias)...</option>
           </select>
+          <div id="customDurationWrapper" style="margin-top: 0.5rem; display: none;">
+            <input type="number" id="rentalCustomDays" class="form-control" min="1" max="365" value="14" placeholder="Digite a quantidade de dias (1 a 365)">
+          </div>
         </div>
 
         <div class="form-group">
@@ -383,7 +391,11 @@
             <option value="Teologia">Teologia</option>
             <option value="Filosofia">Filosofia</option>
             <option value="História">História</option>
+            <option value="new_custom">➕ Criar Nova Categoria...</option>
           </select>
+          <div id="editCategoryCustomWrapper" style="margin-top: 0.5rem; display: none;">
+            <input type="text" id="editBookCategoryCustom" class="form-control" placeholder="Digite a nova categoria">
+          </div>
         </div>
 
         <div class="form-group">

@@ -75,6 +75,10 @@
       return await this.request('/books/authors');
     }
 
+    static async getCategories() {
+      return await this.request('/books/categories');
+    }
+
     static async checkDuplicateTitle(title) {
       return await this.request(`/books/check-duplicate?title=${encodeURIComponent(title)}`);
     }
@@ -161,6 +165,9 @@
   const openNewRentalBtn = document.getElementById('openNewRentalBtn');
   const addBookForm = document.getElementById('addBookForm');
   const newBookLocation = document.getElementById('newBookLocation');
+  const newBookCategory = document.getElementById('newBookCategory');
+  const newBookCategoryCustom = document.getElementById('newBookCategoryCustom');
+  const newCategoryCustomWrapper = document.getElementById('newCategoryCustomWrapper');
   const newBookTitleInput = document.getElementById('newBookTitle');
   const duplicateWarning = document.getElementById('duplicateWarning');
 
@@ -173,6 +180,8 @@
   const rentalRenterContact = document.getElementById('rentalRenterContact');
   const rentalStartDate = document.getElementById('rentalStartDate');
   const rentalDurationDays = document.getElementById('rentalDurationDays');
+  const rentalCustomDays = document.getElementById('rentalCustomDays');
+  const customDurationWrapper = document.getElementById('customDurationWrapper');
   const rentalLocationSelect = document.getElementById('rentalLocationSelect');
   const calculatedReturnDate = document.getElementById('calculatedReturnDate');
   const closeRentalModalBtn = document.getElementById('closeRentalModalBtn');
@@ -185,6 +194,8 @@
   const editBookTitle = document.getElementById('editBookTitle');
   const editBookAuthor = document.getElementById('editBookAuthor');
   const editBookCategory = document.getElementById('editBookCategory');
+  const editBookCategoryCustom = document.getElementById('editBookCategoryCustom');
+  const editCategoryCustomWrapper = document.getElementById('editCategoryCustomWrapper');
   const editBookLocation = document.getElementById('editBookLocation');
   const editBookCopiesTotal = document.getElementById('editBookCopiesTotal');
   const editBookCopiesAvailable = document.getElementById('editBookCopiesAvailable');
@@ -320,6 +331,30 @@
         authors.map(a => `<option value="${a}">${a}</option>`).join('');
     } catch (err) {
       console.error('Erro ao carregar autores:', err);
+    }
+  }
+
+  async function populateCategoryDropdowns() {
+    try {
+      const categories = await API.getCategories();
+
+      const currentCategoryFilter = categoryFilterSelect.value;
+      categoryFilterSelect.innerHTML = `<option value="ALL">Todas as Categorias</option>` +
+        categories.map(c => `<option value="${c}">${c}</option>`).join('');
+      if (categories.includes(currentCategoryFilter)) {
+        categoryFilterSelect.value = currentCategoryFilter;
+      }
+
+      const defaultNewOption = `<option value="new_custom">➕ Criar Nova Categoria...</option>`;
+      if (newBookCategory) {
+        newBookCategory.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') + defaultNewOption;
+      }
+
+      if (editBookCategory) {
+        editBookCategory.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') + defaultNewOption;
+      }
+    } catch (err) {
+      console.error('Erro ao carregar categorias:', err);
     }
   }
 
@@ -538,6 +573,8 @@
       rentalRenterName.value = '';
       rentalRenterContact.value = '';
       rentalDurationDays.value = '14';
+      if (rentalCustomDays) rentalCustomDays.value = '14';
+      if (customDurationWrapper) customDurationWrapper.style.display = 'none';
 
       updateModalReturnDate();
       updateBookStockHint();
@@ -559,9 +596,25 @@
     }
   }
 
+  function getEffectiveDurationDays() {
+    const selected = rentalDurationDays.value;
+    if (selected === 'custom') {
+      let val = parseInt(rentalCustomDays.value, 10);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 365) val = 365;
+      return val;
+    }
+    return parseInt(selected, 10) || 14;
+  }
+
   function updateModalReturnDate() {
     const startDate = rentalStartDate.value;
-    const duration = rentalDurationDays.value;
+    const isCustom = rentalDurationDays.value === 'custom';
+    if (customDurationWrapper) {
+      customDurationWrapper.style.display = isCustom ? 'block' : 'none';
+    }
+
+    const duration = getEffectiveDurationDays();
     if (startDate) {
       const returnDateStr = calculateReturnDate(startDate, duration);
       calculatedReturnDate.textContent = formatDateBR(returnDateStr);
@@ -582,7 +635,7 @@
     const renter_name = rentalRenterName.value.trim();
     const renter_contact = rentalRenterContact.value.trim();
     const start_date = rentalStartDate.value;
-    const duration_days = parseInt(rentalDurationDays.value, 10);
+    const duration_days = getEffectiveDurationDays();
     const location_id = rentalLocationSelect.value;
 
     if (!book_id) {
@@ -633,11 +686,15 @@
       if (!book) return;
 
       await populateLocationDropdowns();
+      await populateCategoryDropdowns();
 
       editBookId.value = book.id;
       editBookTitle.value = book.title;
       editBookAuthor.value = book.author;
-      editBookCategory.value = book.category;
+      if (editBookCategory) editBookCategory.value = book.category;
+      if (editCategoryCustomWrapper) editCategoryCustomWrapper.style.display = 'none';
+      if (editBookCategoryCustom) editBookCategoryCustom.value = '';
+
       editBookLocation.value = book.location_id;
       editBookCopiesTotal.value = book.copies_total;
       editBookCopiesAvailable.value = book.copies_available;
@@ -766,13 +823,35 @@
     // Open new rental modal
     openNewRentalBtn.addEventListener('click', () => openRentalModal());
 
-    // Rental modal
+    // Rental modal listeners
     rentalForm.addEventListener('submit', handleCreateRental);
     rentalStartDate.addEventListener('change', updateModalReturnDate);
     rentalDurationDays.addEventListener('change', updateModalReturnDate);
+    if (rentalCustomDays) {
+      rentalCustomDays.addEventListener('input', updateModalReturnDate);
+      rentalCustomDays.addEventListener('change', updateModalReturnDate);
+      rentalCustomDays.addEventListener('keyup', updateModalReturnDate);
+    }
     rentalBookSelect.addEventListener('change', updateBookStockHint);
     closeRentalModalBtn.addEventListener('click', closeRentalModal);
     cancelRentalModalBtn.addEventListener('click', closeRentalModal);
+
+    // Custom category toggle listeners
+    if (newBookCategory) {
+      newBookCategory.addEventListener('change', () => {
+        const isCustom = newBookCategory.value === 'new_custom';
+        if (newCategoryCustomWrapper) newCategoryCustomWrapper.style.display = isCustom ? 'block' : 'none';
+        if (isCustom && newBookCategoryCustom) newBookCategoryCustom.focus();
+      });
+    }
+
+    if (editBookCategory) {
+      editBookCategory.addEventListener('change', () => {
+        const isCustom = editBookCategory.value === 'new_custom';
+        if (editCategoryCustomWrapper) editCategoryCustomWrapper.style.display = isCustom ? 'block' : 'none';
+        if (isCustom && editBookCategoryCustom) editBookCategoryCustom.focus();
+      });
+    }
 
     // Edit book modal
     if (closeEditBookModalBtn) closeEditBookModalBtn.addEventListener('click', closeEditBookModal);
@@ -784,14 +863,30 @@
         if (!currentUser) return;
 
         const bookId = editBookId.value;
+        const copies_total = parseInt(editBookCopiesTotal.value, 10);
+        const copies_available = parseInt(editBookCopiesAvailable.value, 10);
+
+        if (isNaN(copies_total) || copies_total < 1) {
+          showToast('Informe uma quantidade válida de exemplares totais.', 'error');
+          return;
+        }
+
+        if (copies_available > copies_total) {
+          showToast('A quantidade de exemplares disponíveis não pode ser maior que o total.', 'error');
+          return;
+        }
+
+        const category = await resolveCategoryValue(editBookCategory, editBookCategoryCustom, editCategoryCustomWrapper);
+        if (!category) return;
+
         try {
           await API.updateBook(bookId, {
             title: editBookTitle.value.trim(),
             author: editBookAuthor.value.trim(),
-            category: editBookCategory.value,
+            category,
             location_id: editBookLocation.value,
-            copies_total: parseInt(editBookCopiesTotal.value, 10),
-            copies_available: parseInt(editBookCopiesAvailable.value, 10)
+            copies_total,
+            copies_available
           });
 
           closeEditBookModal();
@@ -799,6 +894,7 @@
           await renderAdminDashboard();
           await renderCatalog();
           await populateAuthorFilter();
+          await populateCategoryDropdowns();
         } catch (err) {
           showToast(err.message || 'Erro ao atualizar livro.', 'error');
         }
@@ -812,9 +908,11 @@
 
       const title = document.getElementById('newBookTitle').value.trim();
       const author = document.getElementById('newBookAuthor').value.trim();
-      const category = document.getElementById('newBookCategory').value;
       const location_id = document.getElementById('newBookLocation').value;
       const copies_total = parseInt(document.getElementById('newBookCopies').value, 10);
+
+      const category = await resolveCategoryValue(newBookCategory, newBookCategoryCustom, newCategoryCustomWrapper);
+      if (!category) return;
 
       try {
         const res = await API.addBook({
@@ -832,10 +930,12 @@
 
         showToast(`Livro "${title}" cadastrado com sucesso!`, 'success');
         addBookForm.reset();
+        if (newCategoryCustomWrapper) newCategoryCustomWrapper.style.display = 'none';
         duplicateWarning.style.display = 'none';
         await renderAdminDashboard();
         await renderCatalog();
         await populateAuthorFilter();
+        await populateCategoryDropdowns();
       } catch (err) {
         showToast(err.message || 'Erro ao cadastrar livro.', 'error');
       }
@@ -888,12 +988,41 @@
           await renderAdminDashboard();
           await renderCatalog();
           await populateAuthorFilter();
+          await populateCategoryDropdowns();
         } catch (err) {
           showToast(err.message || 'Erro ao processar arquivo XLSX.', 'error');
           xlsxFileInput.value = '';
         }
       });
     }
+  }
+
+  // Helper para validar/obter nome de categoria
+  async function resolveCategoryValue(selectElem, customInputElem, wrapperElem) {
+    if (!selectElem) return 'Espiritualidade';
+    if (selectElem.value !== 'new_custom') {
+      return selectElem.value;
+    }
+
+    const newCatName = (customInputElem ? customInputElem.value : '').trim();
+    if (!newCatName) {
+      showToast('Informe o nome da nova categoria.', 'error');
+      return null;
+    }
+
+    const existingCategories = await API.getCategories();
+    const foundExisting = existingCategories.find(
+      c => c.trim().toLowerCase() === newCatName.toLowerCase()
+    );
+
+    if (foundExisting) {
+      showToast(`⚠️ A categoria "${foundExisting}" já existe e foi selecionada automaticamente!`, 'info');
+      selectElem.value = foundExisting;
+      if (wrapperElem) wrapperElem.style.display = 'none';
+      return foundExisting;
+    }
+
+    return newCatName;
   }
 
   // --- INITIALIZATION ---
@@ -904,6 +1033,7 @@
     // Catálogo sempre visível — carregar filtros e exibir para todos
     await populateLocationDropdowns();
     await populateAuthorFilter();
+    await populateCategoryDropdowns();
     switchView('viewCatalog');
 
     if (window.lucide) {

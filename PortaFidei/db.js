@@ -154,6 +154,13 @@ const Repository = {
   },
 
   async updateBook(id, fields) {
+    if (fields.copies_available !== undefined && fields.copies_total !== undefined) {
+      const avail = parseInt(fields.copies_available, 10);
+      const total = parseInt(fields.copies_total, 10);
+      if (avail > total) {
+        throw new Error('A quantidade de exemplares disponíveis não pode ser maior que o total.');
+      }
+    }
     const { data, error } = await supabaseAdmin
       .from('books')
       .update(fields)
@@ -176,6 +183,17 @@ const Repository = {
     if (error) throw error;
 
     const unique = [...new Set((data || []).map(b => b.author))].sort();
+    return unique;
+  },
+
+  // Retorna lista de categorias únicas para filtros e formulários
+  async getDistinctCategories() {
+    const { data, error } = await supabaseAdmin.from('books').select('category');
+    const defaultCats = ['Espiritualidade', 'Teologia', 'Filosofia', 'História'];
+    if (error || !data) return defaultCats;
+
+    const categories = (data || []).map(b => b.category).filter(Boolean);
+    const unique = [...new Set([...defaultCats, ...categories])].sort();
     return unique;
   },
 
