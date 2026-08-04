@@ -1,6 +1,6 @@
 /* ==========================================================================
    PORTA FIDEI - SUPABASE DATABASE CONNECTOR & REPOSITORY
-   Versão migrada: usa Supabase Auth nativo (auth.users + profiles)
+   Versão refatorada: Admin-only, gerenciamento direto de catálogo e aluguéis
    ========================================================================== */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -15,69 +15,43 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_KEY) {
   process.exit(1);
 }
 
-// Cliente "anon": só para operações de autenticação (signUp, signInWithPassword,
-// verificação de token). Nunca usado para consultar tabelas diretamente.
+// Cliente "anon": usado para autenticação (signInWithPassword, verificação de token)
 const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Cliente "service_role": ignora RLS. Usado para TODAS as consultas às tabelas
-// (profiles, books, rentals), porque a autorização já é garantida no server.js
-// (authenticateToken + requireAdmin + checagens de dono). NUNCA exponha esta
-// chave no frontend — ela só pode existir aqui, no backend.
+// Cliente "service_role": ignora RLS, usado para todas as consultas às tabelas.
+// NUNCA expor no frontend.
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-console.log('✅ Conectado ao Supabase (Auth nativo + service_role para dados)');
+console.log('✅ Conectado ao Supabase (Admin-Only Mode)');
 
 const Repository = {
-  isSupabaseActive() {
-    return true;
-  },
-
   // --------------------------------------------------------------------
-  // AUTH
+  // AUTH (Admin-Only)
   // --------------------------------------------------------------------
 
-  // Verifica um access_token do Supabase e retorna o usuário autenticado (ou null)
   async verifyToken(token) {
     const { data, error } = await supabaseAuth.auth.getUser(token);
     if (error || !data.user) return null;
-    return data.user; // { id, email, ... }
+    return data.user;
   },
 
-  async registerUser({ name, username, email, password, location_id }) {
-    const { data, error } = await supabaseAuth.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name, username }
-      }
-    });
-
-    if (error) {
-      throw new Error(error.message === 'User already registered'
-        ? 'Este e-mail já está cadastrado.'
-        : error.message);
-    }
-
-    // O trigger on_auth_user_created já criou a linha em profiles com name/username.
-    // Só falta gravar a location_id escolhida no cadastro.
-    if (data.user && location_id) {
-      await supabaseAdmin
-        .from('profiles')
-        .update({ location_id })
-        .eq('id', data.user.id);
-    }
-
-    return this.getProfile(data.user.id);
-  },
-
-  async loginUser({ email, password }) {
+  async loginAdmin({ email, password }) {
     const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
 
     if (error) {
-      throw new Error('Usuário/E-mail ou senha incorretos.');
+      throw new Error('E-mail ou senha incorretos.');
     }
 
-    const profile = await this.getProfile(data.user.id);
+    // Buscar perfil na tabela profiles para verificar se é admin
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (!profile || profile.role !== 'admin') {
+      throw new Error('Acesso restrito: apenas a conta de administração pode acessar o sistema.');
+    }
 
     return {
       access_token: data.session.access_token,
@@ -107,43 +81,44 @@ const Repository = {
   },
 
   // --------------------------------------------------------------------
-  // PROFILES (usuários)
-  // --------------------------------------------------------------------
-  async getProfiles(statusFilter = null) {
-    let query = supabaseAdmin.from('profiles').select('*');
-    if (statusFilter) query = query.eq('status', statusFilter);
-    const { data, error } = await query;
-    if (error) throw error;
-    return data;
-  },
-
-  async updateProfileStatus(userId, status) {
-    const { data, error } = await supabaseAdmin
-      .from('profiles')
-      .update({ status })
-      .eq('id', userId)
-      .select('*')
-      .single();
-    if (error) return null;
-    return data;
-  },
-
-  // --------------------------------------------------------------------
   // BOOKS
   // --------------------------------------------------------------------
-  async getBooks({ search, location_id, category } = {}) {
+  async getBooks({ search, location_id, category, author } = {}) {
     let query = supabaseAdmin.from('books').select('*');
     if (location_id && location_id !== 'ALL') query = query.eq('location_id', location_id);
     if (category && category !== 'ALL') query = query.eq('category', category);
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('title', { ascending: true });
     if (error) throw error;
 
-    if (search) {
-      const s = search.toLowerCase();
-      return data.filter(b => b.title.toLowerCase().includes(s) || b.author.toLowerCase().includes(s));
+    let filtered = data;
+
+    // Filtro por autor (case-insensitive partial match)
+    if (author && author.trim() !== '' && author !== 'ALL') {
+      const a = author.toLowerCase();
+      filtered = filtered.filter(b => b.author.toLowerCase().includes(a));
     }
-    return data;
+
+    // Filtro por busca textual (título ou autor)
+    if (search && search.trim() !== '') {
+      const s = search.toLowerCase();
+      filtered = filtered.filter(b =>
+        b.title.toLowerCase().includes(s) || b.author.toLowerCase().includes(s)
+      );
+    }
+
+    // Garantir que cada livro apareça unicamente uma vez no catálogo
+    const seen = new Set();
+    const uniqueBooks = [];
+    for (const book of filtered) {
+      const key = `${book.title.trim().toLowerCase()}|${book.location_id || ''}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueBooks.push(book);
+      }
+    }
+
+    return uniqueBooks;
   },
 
   async getBookById(id) {
@@ -152,11 +127,22 @@ const Repository = {
     return data;
   },
 
+  // Verifica se existe livro com o mesmo título (para aviso de duplicata)
+  async checkDuplicateBookTitle(title) {
+    const { data, error } = await supabaseAdmin
+      .from('books')
+      .select('id, title, author, location_id')
+      .ilike('title', title.trim());
+
+    if (error) return [];
+    return data || [];
+  },
+
   async createBook({ title, author, category, cover, location_id, copies_total }) {
     const copies = parseInt(copies_total, 10) || 1;
     const { data, error } = await supabaseAdmin.from('books').insert([{
-      title,
-      author,
+      title: title.trim(),
+      author: author.trim(),
       category,
       cover: cover || 'assets/confissoes.png',
       location_id: location_id || 'loc-1',
@@ -184,46 +170,125 @@ const Repository = {
     return true;
   },
 
-  // --------------------------------------------------------------------
-  // RENTALS
-  // --------------------------------------------------------------------
-  async getRentals({ userId, status } = {}) {
-    let query = supabaseAdmin.from('rentals').select('*, books(title), profiles(name, email)');
-    if (userId) query = query.eq('user_id', userId);
-    if (status) query = query.eq('status', status);
+  // Retorna lista de autores únicos para o filtro
+  async getDistinctAuthors() {
+    const { data, error } = await supabaseAdmin.from('books').select('author');
+    if (error) throw error;
 
-    const { data, error } = await query;
+    const unique = [...new Set((data || []).map(b => b.author))].sort();
+    return unique;
+  },
+
+  // --------------------------------------------------------------------
+  // RENTALS (Admin registra diretamente)
+  // --------------------------------------------------------------------
+  async getRentals({ status, book_id } = {}) {
+    let query = supabaseAdmin.from('rentals').select('*, books(title, author)');
+    if (status && status !== 'ALL') query = query.eq('status', status);
+    if (book_id) query = query.eq('book_id', book_id);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data;
   },
 
-  async createRental(rentalData) {
+  async createRental({ book_id, renter_name, renter_contact, start_date, duration_days, location_id }) {
+    // Buscar livro e validar disponibilidade
+    const book = await this.getBookById(book_id);
+    if (!book) throw new Error('Livro não encontrado.');
+    if (book.copies_available <= 0) throw new Error('Não há exemplares disponíveis deste livro para aluguel.');
+
+    // Calcular data de devolução
+    const d = new Date(start_date + 'T00:00:00');
+    d.setDate(d.getDate() + parseInt(duration_days, 10));
+    const return_date = d.toISOString().split('T')[0];
+
+    // Inserir aluguel
     const { data, error } = await supabaseAdmin
       .from('rentals')
-      .insert([rentalData])
-      .select('*')
+      .insert([{
+        book_id,
+        renter_name: renter_name.trim(),
+        renter_contact: (renter_contact || '').trim(),
+        start_date,
+        duration_days: parseInt(duration_days, 10),
+        return_date,
+        location_id: location_id || book.location_id,
+        status: 'active'
+      }])
+      .select('*, books(title, author)')
       .single();
     if (error) throw error;
+
+    // Decrementar exemplares disponíveis
+    await supabaseAdmin
+      .from('books')
+      .update({ copies_available: book.copies_available - 1 })
+      .eq('id', book_id);
+
     return data;
   },
 
-  async updateRentalStatus(rentalId, status) {
-    const { data, error } = await supabaseAdmin
+  async returnRental(rentalId) {
+    // Buscar aluguel
+    const { data: rental, error: findError } = await supabaseAdmin
       .from('rentals')
-      .update({ status })
+      .select('*')
       .eq('id', rentalId)
-      .select('*')
       .single();
-    if (error) return null;
 
-    if (data && status === 'approved') {
-      const book = await this.getBookById(data.book_id);
-      if (book && book.copies_available > 0) {
-        await this.updateBook(data.book_id, { copies_available: book.copies_available - 1 });
-      }
+    if (findError || !rental) throw new Error('Aluguel não encontrado.');
+    if (rental.status === 'returned') throw new Error('Este aluguel já foi devolvido.');
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // Atualizar status para devolvido
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('rentals')
+      .update({
+        status: 'returned',
+        actual_return_date: today
+      })
+      .eq('id', rentalId)
+      .select('*, books(title, author)')
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Incrementar exemplares disponíveis (sem exceder copies_total)
+    const book = await this.getBookById(rental.book_id);
+    if (book) {
+      const newAvailable = Math.min(book.copies_available + 1, book.copies_total);
+      await supabaseAdmin
+        .from('books')
+        .update({ copies_available: newAvailable })
+        .eq('id', rental.book_id);
     }
 
-    return data;
+    return updated;
+  },
+
+  // --------------------------------------------------------------------
+  // STATS (Admin Dashboard)
+  // --------------------------------------------------------------------
+  async getAdminStats() {
+    const { data: books } = await supabaseAdmin.from('books').select('copies_available, copies_total');
+    const { data: activeRentals } = await supabaseAdmin.from('rentals').select('id').eq('status', 'active');
+    const { data: overdueRentals } = await supabaseAdmin.from('rentals').select('id').eq('status', 'overdue');
+    const { data: returnedRentals } = await supabaseAdmin.from('rentals').select('id').eq('status', 'returned');
+
+    const totalBooks = (books || []).length;
+    const totalCopies = (books || []).reduce((sum, b) => sum + b.copies_total, 0);
+    const unavailableBooks = (books || []).filter(b => b.copies_available <= 0).length;
+
+    return {
+      totalBooks,
+      totalCopies,
+      unavailableBooks,
+      activeRentalsCount: (activeRentals || []).length,
+      overdueRentalsCount: (overdueRentals || []).length,
+      returnedRentalsCount: (returnedRentals || []).length
+    };
   }
 };
 

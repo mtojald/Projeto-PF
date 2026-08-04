@@ -1,5 +1,5 @@
 -- ==========================================================================
--- PORTA FIDEI - SCRIPT DE SCHEMA & SEED DATA SUPABASE (POSTGRESQL)
+-- PORTA FIDEI - SCHEMA REFATORADO (ADMIN-ONLY)
 -- Cole e execute este script no SQL Editor do seu Dashboard no Supabase
 -- ==========================================================================
 
@@ -9,20 +9,7 @@ CREATE TABLE IF NOT EXISTS public.locations (
   name TEXT NOT NULL
 );
 
--- 2. Tabela de Usuários
-CREATE TABLE IF NOT EXISTS public.users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  username TEXT UNIQUE NOT NULL,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'user', -- 'admin' ou 'user'
-  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
-  location_id TEXT REFERENCES public.locations(id) ON DELETE SET NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
-);
-
--- 3. Tabela de Livros
+-- 2. Tabela de Livros
 CREATE TABLE IF NOT EXISTS public.books (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -35,20 +22,18 @@ CREATE TABLE IF NOT EXISTS public.books (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 4. Tabela de Solicitações de Aluguel
+-- 3. Tabela de Aluguéis (simplificada, admin-only)
 CREATE TABLE IF NOT EXISTS public.rentals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
-  user_name TEXT NOT NULL,
-  user_email TEXT NOT NULL,
   book_id UUID REFERENCES public.books(id) ON DELETE CASCADE,
-  book_title TEXT NOT NULL,
+  renter_name TEXT NOT NULL,
+  renter_contact TEXT DEFAULT '',
   start_date DATE NOT NULL,
   duration_days INTEGER NOT NULL DEFAULT 14,
   return_date DATE NOT NULL,
+  actual_return_date DATE,
   location_id TEXT REFERENCES public.locations(id) ON DELETE SET NULL,
-  location_name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved', 'rejected', 'active'
+  status TEXT NOT NULL DEFAULT 'active', -- 'active', 'returned', 'overdue'
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
@@ -61,12 +46,6 @@ INSERT INTO public.locations (id, name) VALUES
   ('loc-1', 'Casa PF'),
   ('loc-2', 'Samaria PF')
 ON CONFLICT (id) DO NOTHING;
-
--- Administradora Oficial (Cacaia / santafaustina)
--- A senha 'santafaustina' está em hash bcrypt abaixo
-INSERT INTO public.users (id, name, username, email, password_hash, role, status, location_id) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'Cacaia', 'Cacaia', 'cacaia@portafidei.com', '$2a$10$wT2Hl7j4WzC7yVvO40Pee.cSmQvP7YnJ1zVf4zY9Z5c5JkP7YnJ1z', 'admin', 'approved', 'loc-1')
-ON CONFLICT (email) DO NOTHING;
 
 -- Livros Iniciais no Acervo
 INSERT INTO public.books (title, author, category, cover, location_id, copies_available, copies_total) VALUES

@@ -1,6 +1,6 @@
 /* ==========================================================================
    PORTA FIDEI - NODE.JS EXPRESS REST API SERVER
-   Versão migrada: autenticação via Supabase Auth (sem JWT/bcrypt próprios)
+   Versão refatorada: Admin-only, gerenciamento direto de catálogo e aluguéis
    ========================================================================== */
 
 const express = require('express');
@@ -19,23 +19,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// --- HELPER: remove campos internos antes de responder ---
-function sanitizeProfile(profile) {
-  if (!profile) return profile;
-  const { ...safe } = profile; // profiles não tem password_hash, mas mantemos o padrão
-  return safe;
-}
-
-function enrichRental(r, locMap) {
-  return {
-    ...r,
-    book_title: r.books?.title,
-    user_name: r.profiles?.name,
-    user_email: r.profiles?.email,
-    location_name: locMap[r.location_id] || r.location_id
-  };
-}
-
 // --- SECURITY MIDDLEWARES ---
 async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -49,26 +32,45 @@ async function authenticateToken(req, res, next) {
   const profile = await db.getProfile(authUser.id);
   if (!profile) return res.status(403).json({ error: 'Perfil não encontrado.' });
 
-  req.user = { id: authUser.id, email: authUser.email, ...profile };
-  next();
-}
-
-function requireAdmin(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Acesso não autorizado.' });
-
-  const identifier = (req.user.username || req.user.email || '').toLowerCase();
-  const isAdminUser = req.user.role === 'admin' && (identifier === 'cacaia' || identifier === 'cacaia@portafidei.com');
+  // Apenas admin pode acessar
+  const identifier = (profile.username || profile.email || '').toLowerCase();
+  const isAdminUser = profile.role === 'admin' && (identifier === 'cacaia' || identifier === 'cacaia@portafidei.com');
 
   if (!isAdminUser) {
     return res.status(403).json({ error: 'Acesso restrito: Apenas a administradora possui permissão.' });
   }
 
+  req.user = { id: authUser.id, email: authUser.email, ...profile };
   next();
 }
 
 // --- API ENDPOINTS ---
 
-// 1. PUBLIC: Get Locations
+// 1. AUTH: Login (admin-only)
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Informe o e-mail e a senha.' });
+    }
+
+    const { access_token, refresh_token, profile } = await db.loginAdmin({
+      email: email.trim().toLowerCase(),
+      password: password.trim()
+    });
+
+    res.json({
+      token: access_token,
+      refresh_token,
+      user: profile
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'E-mail ou senha incorretos.' });
+  }
+});
+
+// 2. LOCATIONS (público — catálogo visível para todos)
 app.get('/api/locations', async (req, res) => {
   try {
     const locations = await db.getLocations();
@@ -78,97 +80,63 @@ app.get('/api/locations', async (req, res) => {
   }
 });
 
-// 2. AUTH: Register
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { name, email, password, location_id } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const username = cleanEmail.split('@')[0];
-
-    if (cleanEmail === 'cacaia' || name.toLowerCase() === 'cacaia') {
-      return res.status(400).json({ error: 'Nome de usuário reservado para a administração.' });
-    }
-
-    const profile = await db.registerUser({
-      name: name.trim(),
-      username,
-      email: cleanEmail,
-      password: password.trim(),
-      location_id: location_id || 'loc-1'
-    });
-
-    res.status(201).json({
-      message: 'Solicitação de cadastro enviada com sucesso! Aguarde a aprovação da administração.',
-      user: sanitizeProfile(profile)
-    });
-  } catch (err) {
-    console.error('Erro no registro:', err.message);
-    res.status(400).json({ error: err.message || 'Erro interno ao realizar cadastro.' });
-  }
-});
-
-// 3. AUTH: Login
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { identifier, password } = req.body;
-
-    if (!identifier || !password) {
-      return res.status(400).json({ error: 'Informe o e-mail e a senha.' });
-    }
-
-    // Supabase Auth loga por e-mail. Se o usuário digitou um username, o front
-    // pode ajustar para sempre enviar e-mail — aqui tratamos identifier como e-mail.
-    const { access_token, refresh_token, profile } = await db.loginUser({
-      email: identifier.trim().toLowerCase(),
-      password: password.trim()
-    });
-
-    res.json({
-      token: access_token,
-      refresh_token,
-      user: sanitizeProfile(profile)
-    });
-  } catch (err) {
-    res.status(400).json({ error: err.message || 'Usuário/E-mail ou senha incorretos.' });
-  }
-});
-
-// 4. AUTH: Get Current User Me
-app.get('/api/auth/me', authenticateToken, async (req, res) => {
-  res.json({ user: sanitizeProfile(req.user) });
-});
-
-// 5. BOOKS: Get Catalog
+// 3. BOOKS: Get Catalog (público — catálogo visível para todos)
 app.get('/api/books', async (req, res) => {
   try {
-    const { search, location_id, category } = req.query;
-    const books = await db.getBooks({ search, location_id, category });
+    const { search, location_id, category, author } = req.query;
+    const books = await db.getBooks({ search, location_id, category, author });
     res.json(books);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar livros.' });
   }
 });
 
-// 6. BOOKS (ADMIN): Add Book
-app.post('/api/books', authenticateToken, requireAdmin, async (req, res) => {
+// 4. BOOKS: Get distinct authors (público — filtro do catálogo)
+app.get('/api/books/authors', async (req, res) => {
+  try {
+    const authors = await db.getDistinctAuthors();
+    res.json(authors);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar autores.' });
+  }
+});
+
+// 5. BOOKS: Check duplicate title
+app.get('/api/books/check-duplicate', authenticateToken, async (req, res) => {
+  try {
+    const { title } = req.query;
+    if (!title) return res.json({ duplicates: [] });
+
+    const duplicates = await db.checkDuplicateBookTitle(title);
+    res.json({ duplicates });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao verificar duplicatas.' });
+  }
+});
+
+// 6. BOOKS: Add Book
+app.post('/api/books', authenticateToken, async (req, res) => {
   try {
     const { title, author, category, cover, location_id, copies_total } = req.body;
     if (!title || !author) return res.status(400).json({ error: 'Título e Autor são obrigatórios.' });
 
+    // Verificar duplicata e avisar (mas permite cadastrar)
+    const duplicates = await db.checkDuplicateBookTitle(title);
     const newBook = await db.createBook({ title, author, category, cover, location_id, copies_total });
-    res.status(201).json(newBook);
+
+    res.status(201).json({
+      book: newBook,
+      warning: duplicates.length > 0
+        ? `⚠️ Atenção: Já existe(m) ${duplicates.length} livro(s) com título igual ou similar: ${duplicates.map(d => `"${d.title}" por ${d.author}`).join(', ')}`
+        : null
+    });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao cadastrar livro.' });
   }
 });
 
-// 7. BOOKS (ADMIN): Update Book
-app.put('/api/books/:id', authenticateToken, requireAdmin, async (req, res) => {
+// 7. BOOKS: Update Book
+app.put('/api/books/:id', authenticateToken, async (req, res) => {
   try {
     const updated = await db.updateBook(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Livro não encontrado.' });
@@ -178,8 +146,8 @@ app.put('/api/books/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// 8. BOOKS (ADMIN): Delete Book
-app.delete('/api/books/:id', authenticateToken, requireAdmin, async (req, res) => {
+// 8. BOOKS: Delete Book
+app.delete('/api/books/:id', authenticateToken, async (req, res) => {
   try {
     await db.deleteBook(req.params.id);
     res.json({ success: true, message: 'Livro excluído com sucesso.' });
@@ -188,126 +156,72 @@ app.delete('/api/books/:id', authenticateToken, requireAdmin, async (req, res) =
   }
 });
 
-// 9. RENTALS: Create Rental Request
-app.post('/api/rentals', authenticateToken, async (req, res) => {
+// 9. RENTALS: List all (com filtros)
+app.get('/api/rentals', authenticateToken, async (req, res) => {
   try {
-    const { book_id, start_date, duration_days, location_id } = req.body;
-
-    if (req.user.status !== 'approved' && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Sua conta ainda aguarda aprovação da administração.' });
-    }
-
-    const book = await db.getBookById(book_id);
-    if (!book || book.copies_available <= 0) {
-      return res.status(400).json({ error: 'Livro indisponível para aluguel no momento.' });
-    }
-
-    const d = new Date(start_date + 'T00:00:00');
-    d.setDate(d.getDate() + parseInt(duration_days, 10));
-    const return_date = d.toISOString().split('T')[0];
-
-    const rentalData = {
-      user_id: req.user.id,
-      book_id: book.id,
-      start_date,
-      duration_days: parseInt(duration_days, 10),
-      return_date,
-      location_id: location_id || book.location_id,
-      status: 'pending'
-    };
-
-    const newRental = await db.createRental(rentalData);
-    res.status(201).json(newRental);
-  } catch (err) {
-    console.error('Erro no aluguel:', err.message);
-    res.status(500).json({ error: 'Erro ao criar solicitação de aluguel.' });
-  }
-});
-
-// 10. RENTALS: My Rentals
-app.get('/api/rentals/my', authenticateToken, async (req, res) => {
-  try {
+    const { status, book_id } = req.query;
     const locations = await db.getLocations();
     const locMap = Object.fromEntries(locations.map(l => [l.id, l.name]));
-    const rentals = await db.getRentals({ userId: req.user.id });
-    res.json(rentals.map(r => enrichRental(r, locMap)));
+
+    const rentals = await db.getRentals({ status, book_id });
+    const enriched = rentals.map(r => ({
+      ...r,
+      book_title: r.books?.title || '',
+      book_author: r.books?.author || '',
+      location_name: locMap[r.location_id] || r.location_id
+    }));
+
+    res.json(enriched);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar aluguéis.' });
   }
 });
 
-// 11. ADMIN: Stats & Dashboard
-app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) => {
+// 10. RENTALS: Create (admin registra diretamente, com decremento)
+app.post('/api/rentals', authenticateToken, async (req, res) => {
   try {
-    const pendingUsers = await db.getProfiles('pending');
-    const pendingRentals = await db.getRentals({ status: 'pending' });
-    const activeRentals = await db.getRentals({ status: 'approved' });
-    const books = await db.getBooks();
+    const { book_id, renter_name, renter_contact, start_date, duration_days, location_id } = req.body;
 
-    res.json({
-      pendingUsersCount: pendingUsers.length,
-      pendingRentalsCount: pendingRentals.length,
-      activeRentalsCount: activeRentals.length,
-      totalBooksCount: books.length
+    if (!book_id || !renter_name || !start_date) {
+      return res.status(400).json({ error: 'Livro, nome do locatário e data de início são obrigatórios.' });
+    }
+
+    const newRental = await db.createRental({
+      book_id,
+      renter_name,
+      renter_contact,
+      start_date,
+      duration_days: duration_days || 14,
+      location_id
     });
+
+    res.status(201).json(newRental);
+  } catch (err) {
+    console.error('Erro no aluguel:', err.message);
+    res.status(400).json({ error: err.message || 'Erro ao registrar aluguel.' });
+  }
+});
+
+// 11. RENTALS: Return (devolução, com incremento)
+app.patch('/api/rentals/:id/return', authenticateToken, async (req, res) => {
+  try {
+    const returned = await db.returnRental(req.params.id);
+    res.json({
+      message: `Livro "${returned.books?.title || ''}" devolvido com sucesso!`,
+      rental: returned
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Erro ao registrar devolução.' });
+  }
+});
+
+// 12. ADMIN: Stats & Dashboard
+app.get('/api/admin/stats', authenticateToken, async (req, res) => {
+  try {
+    const stats = await db.getAdminStats();
+    res.json(stats);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar estatísticas.' });
-  }
-});
-
-// 12. ADMIN: Pending Users
-app.get('/api/admin/users/pending', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const pendingUsers = await db.getProfiles('pending');
-    res.json(pendingUsers.map(sanitizeProfile));
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar usuários pendentes.' });
-  }
-});
-
-// 13. ADMIN: Approve / Reject User
-app.patch('/api/admin/users/:id/status', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { status } = req.body;
-    const updated = await db.updateProfileStatus(req.params.id, status);
-    if (!updated) return res.status(404).json({ error: 'Usuário não encontrado.' });
-
-    res.json({
-      message: `Usuário ${updated.name} foi ${status === 'approved' ? 'ACEITO' : 'REJEITADO'}!`,
-      user: sanitizeProfile(updated)
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar status do usuário.' });
-  }
-});
-
-// 14. ADMIN: Pending Rentals
-app.get('/api/admin/rentals/pending', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const locations = await db.getLocations();
-    const locMap = Object.fromEntries(locations.map(l => [l.id, l.name]));
-    const pendingRentals = await db.getRentals({ status: 'pending' });
-    res.json(pendingRentals.map(r => enrichRental(r, locMap)));
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar aluguéis pendentes.' });
-  }
-});
-
-// 15. ADMIN: Approve / Reject Rental
-app.patch('/api/admin/rentals/:id/status', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { status } = req.body;
-    const updated = await db.updateRentalStatus(req.params.id, status);
-    if (!updated) return res.status(404).json({ error: 'Solicitação de aluguel não encontrada.' });
-
-    const book = await db.getBookById(updated.book_id);
-
-    res.json({
-      message: `Aluguel do livro "${book?.title || ''}" foi ${status === 'approved' ? 'ACEITO' : 'REJEITADO'}!`,
-      rental: updated
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar status do aluguel.' });
   }
 });
 
@@ -318,7 +232,7 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`=======================================================`);
-  console.log(`🚀 Servidor Porta Fidei Node.js rodando em http://localhost:${PORT}`);
-  console.log(`🔒 Autenticação: Supabase Auth nativo`);
+  console.log(`🚀 Servidor Porta Fidei rodando em http://localhost:${PORT}`);
+  console.log(`📚 Modo: Biblioteca Porta Fidei (Catálogo Público + Admin)`);
   console.log(`=======================================================`);
 });

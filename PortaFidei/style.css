@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PORTA FIDEI - DESIGN SYSTEM & STYLESHEET
+   PORTA FIDEI - DESIGN SYSTEM & STYLESHEET (ADMIN-ONLY)
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;900&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap');
@@ -41,6 +41,14 @@
   --status-active-bg: rgba(99, 102, 241, 0.15);
   --status-active-text: #818CF8;
   --status-active-border: rgba(99, 102, 241, 0.4);
+
+  --status-returned-bg: rgba(16, 185, 129, 0.12);
+  --status-returned-text: #34D399;
+  --status-returned-border: rgba(16, 185, 129, 0.35);
+
+  --status-overdue-bg: rgba(239, 68, 68, 0.15);
+  --status-overdue-text: #F87171;
+  --status-overdue-border: rgba(239, 68, 68, 0.4);
 
   /* Typography */
   --font-serif: 'Cinzel', 'Playfair Display', Georgia, serif;
@@ -249,13 +257,13 @@ h4,
 /* Hero Section */
 .hero-banner {
   position: relative;
-  min-height: 320px;
+  min-height: 280px;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 3rem 1.5rem;
+  padding: 2.5rem 1.5rem;
   background: linear-gradient(180deg, rgba(11, 14, 20, 0.5) 0%, rgba(11, 14, 20, 0.95) 100%),
     url('assets/hero-banner.png') center/cover no-repeat;
 }
@@ -535,6 +543,12 @@ h4,
   transform: translateY(-1px);
 }
 
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .btn-secondary {
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
@@ -596,28 +610,30 @@ h4,
   position: relative;
 }
 
-.auth-tabs {
+.auth-header-block {
   display: flex;
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
-.auth-tab-btn {
-  flex: 1;
-  padding: 0.75rem;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-family: var(--font-serif);
-  font-size: 1.05rem;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all var(--transition-fast);
-}
-
-.auth-tab-btn.active {
+.auth-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-burgundy), #5C1929);
+  border: 2px solid var(--primary-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--primary-gold);
-  border-bottom-color: var(--primary-gold);
+  margin-bottom: 1rem;
+  box-shadow: 0 8px 24px rgba(139, 38, 62, 0.35);
+}
+
+.auth-icon-circle svg {
+  width: 28px;
+  height: 28px;
 }
 
 .form-group {
@@ -650,6 +666,12 @@ h4,
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
 }
 
+.form-hint {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
 
 /* Status Badges */
 .badge-status {
@@ -684,6 +706,18 @@ h4,
   background: var(--status-active-bg);
   color: var(--status-active-text);
   border: 1px solid var(--status-active-border);
+}
+
+.badge-returned {
+  background: var(--status-returned-bg);
+  color: var(--status-returned-text);
+  border: 1px solid var(--status-returned-border);
+}
+
+.badge-overdue {
+  background: var(--status-overdue-bg);
+  color: var(--status-overdue-text);
+  border: 1px solid var(--status-overdue-border);
 }
 
 /* Dashboard Tables & Stats */
@@ -800,6 +834,28 @@ h4,
   background: rgba(212, 175, 55, 0.03);
 }
 
+/* Duplicate Warning */
+.duplicate-warning {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: var(--status-pending-text);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.duplicate-warning svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
 /* Modals */
 .modal-overlay {
   position: fixed;
@@ -831,6 +887,8 @@ h4,
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
   transform: translateY(15px);
   transition: transform 0.25s ease;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-overlay.open .modal-box {
@@ -938,4 +996,39 @@ h4,
 
 .footer-gold {
   color: var(--primary-gold);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .navbar {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .nav-controls {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .hero-title {
+    font-size: 1.8rem;
+  }
+
+  .hero-banner {
+    min-height: 220px;
+    padding: 2rem 1rem;
+  }
+
+  .search-bar-container {
+    flex-direction: column;
+  }
+
+  .admin-stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #adminTabBooksContent > div {
+    grid-template-columns: 1fr !important;
+  }
 }

@@ -3,13 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Porta Fidei - Biblioteca & Aluguel de Livros</title>
-  <meta name="description" content="Plataforma de aluguel e empréstimo de livros da Biblioteca Porta Fidei. Reserve obras clássicas e acompanhe suas solicitações.">
+  <title>Porta Fidei - Biblioteca</title>
+  <meta name="description" content="Biblioteca Porta Fidei — catálogo de livros e sistema de aluguel. Sabedoria e Fé.">
   <link rel="stylesheet" href="style.css">
-  <!-- Lucide Icons CDN for sleek modern icons -->
+  <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- EmailJS SDK para envio real de e-mails -->
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -19,34 +17,29 @@
       <div class="brand-logo">PF</div>
       <div class="brand-title">
         PORTA FIDEI
-        <span class="subtitle">ALUGUEL DE LIVROS</span>
+        <span class="subtitle">BIBLIOTECA</span>
       </div>
     </div>
 
     <div class="nav-controls">
-      <ul class="nav-links">
+      <ul class="nav-links" id="navLinksContainer" style="display: none;">
         <li>
           <button class="nav-link-btn active" id="navCatalogBtn">
             <i data-lucide="book-open"></i> Catálogo
           </button>
         </li>
         <li>
-          <button class="nav-link-btn" id="navMyRentalsBtn" style="display: none;">
-            <i data-lucide="bookmark"></i> Meus Aluguéis
-          </button>
-        </li>
-        <li>
-          <button class="nav-link-btn" id="navAdminBtn" style="display: none;">
+          <button class="nav-link-btn" id="navAdminBtn">
             <i data-lucide="shield-check"></i> Painel Admin
-            <span class="badge-status badge-pending" id="adminPendingBadge" style="display: none;">0</span>
+            <span class="badge-status badge-pending" id="adminActiveBadge" style="display: none;">0</span>
           </button>
         </li>
       </ul>
 
-      <!-- User Profile Badge / Auth Buttons -->
+      <!-- Auth Slot -->
       <div id="authNavSlot">
         <button class="btn btn-primary btn-sm" id="navLoginBtn">
-          <i data-lucide="log-in"></i> Entrar / Cadastrar
+          <i data-lucide="log-in"></i> Login Admin
         </button>
       </div>
 
@@ -60,19 +53,18 @@
   <!-- Hero Banner -->
   <section class="hero-banner">
     <div class="hero-content">
-      <span class="hero-tag"><i data-lucide="compass"></i> Sabedoria & Tradição</span>
+      <span class="hero-tag"><i data-lucide="compass"></i> Sabedoria & Fé</span>
       <h1 class="hero-title">Biblioteca Porta Fidei</h1>
-      <p class="hero-subtitle">Pesquise as melhores obras clássicas, selecione a unidade de retirada e solicite seu aluguel online.</p>
+      <p class="hero-subtitle">Gerencie o acervo de livros, registre aluguéis e acompanhe devoluções.</p>
 
       <!-- Quick Search Container -->
-      <div class="search-bar-container">
+      <div class="search-bar-container" id="searchBarContainer" style="display: none;">
         <div class="search-input-wrapper">
           <i data-lucide="search"></i>
-          <input type="text" id="globalSearchInput" class="search-input" placeholder="Pesquisar por título, autor ou assunto...">
+          <input type="text" id="globalSearchInput" class="search-input" placeholder="Pesquisar por título ou autor...">
         </div>
         <select id="globalLocationSelect" class="search-select">
           <option value="ALL">📍 Todas as Unidades</option>
-          <!-- Options populated dynamically -->
         </select>
         <button class="btn btn-primary" id="searchSubmitBtn">
           Pesquisar
@@ -84,11 +76,40 @@
   <!-- Main View Container -->
   <main class="main-container">
 
-    <!-- VIEW 1: CATALOG -->
-    <section id="viewCatalog" class="view-section active">
+    <!-- VIEW 1: LOGIN -->
+    <section id="viewLogin" class="view-section active">
+      <div class="auth-wrapper">
+        <div class="auth-header-block">
+          <div class="auth-icon-circle">
+            <i data-lucide="shield-check"></i>
+          </div>
+          <h2 class="font-serif" style="text-align: center; margin-bottom: 0.3rem; color: var(--primary-gold);">Acesso Administrativo</h2>
+          <p style="text-align: center; color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">Faça login com a conta de administração para gerenciar o catálogo.</p>
+        </div>
+        <form id="loginForm">
+          <div class="form-group">
+            <label class="form-label" for="loginEmail">E-mail</label>
+            <input type="email" id="loginEmail" class="form-control" placeholder="admin@portafidei.com" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="loginPassword">Senha</label>
+            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
+            <i data-lucide="log-in"></i> Acessar Painel
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- VIEW 2: CATALOG -->
+    <section id="viewCatalog" class="view-section">
       <div class="section-header">
-        <h2 class="section-title"><i data-lucide="library"></i> Acervo de Livros Disponíveis</h2>
-        <div class="catalog-filters" style="display: flex; gap: 0.75rem;">
+        <h2 class="section-title"><i data-lucide="library"></i> Acervo de Livros</h2>
+        <div class="catalog-filters" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+          <select id="authorFilterSelect" class="search-select">
+            <option value="ALL">✍️ Todos os Autores</option>
+          </select>
           <select id="categoryFilterSelect" class="search-select">
             <option value="ALL">Todas as Categorias</option>
             <option value="Teologia">Teologia</option>
@@ -105,109 +126,27 @@
       </div>
     </section>
 
-    <!-- VIEW 2: AUTHENTICATION (Login / Sign Up) -->
-    <section id="viewAuth" class="view-section">
-      <div class="auth-wrapper">
-        <div class="auth-tabs">
-          <button class="auth-tab-btn active" id="authTabLogin">Entrar na Conta</button>
-          <button class="auth-tab-btn" id="authTabSignup">Criar Nova Conta</button>
-        </div>
-
-        <!-- LOGIN FORM -->
-        <form id="loginForm">
-          <div class="form-group">
-            <label class="form-label" for="loginEmail">Usuário ou E-mail</label>
-            <input type="text" id="loginEmail" class="form-control" placeholder="Digite seu usuário ou e-mail" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="loginPassword">Senha</label>
-            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
-          </div>
-          <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
-            <i data-lucide="log-in"></i> Acessar Conta
-          </button>
-        </form>
-
-        <!-- SIGNUP FORM -->
-        <form id="signupForm" style="display: none;">
-          <div class="form-group">
-            <label class="form-label" for="signupName">Nome Completo</label>
-            <input type="text" id="signupName" class="form-control" placeholder="Ex: Maria Santos" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="signupEmail">E-mail</label>
-            <input type="email" id="signupEmail" class="form-control" placeholder="seu@email.com" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="signupPassword">Senha</label>
-            <input type="password" id="signupPassword" class="form-control" placeholder="Crie uma senha forte" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="signupLocation">Unidade de Preferência</label>
-            <select id="signupLocation" class="form-control">
-              <!-- Options via JS -->
-            </select>
-          </div>
-          <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1rem;">
-            * Nota: O seu cadastro precisará ser aprovado pelo Administrador antes de liberar o acesso total ao site.
-          </p>
-          <button type="submit" class="btn btn-burgundy btn-full">
-            <i data-lucide="user-plus"></i> Solicitar Cadastro
-          </button>
-        </form>
-      </div>
-    </section>
-
-    <!-- VIEW 3: USER DASHBOARD (My Rentals) -->
-    <section id="viewUserDashboard" class="view-section">
-      <div class="section-header">
-        <h2 class="section-title"><i data-lucide="bookmark"></i> Minhas Solicitações de Aluguel</h2>
-        <div id="userAccountStatusBadge">
-          <!-- Rendered by JS -->
-        </div>
-      </div>
-
-      <div class="table-responsive">
-        <table class="custom-table">
-          <thead>
-            <tr>
-              <th>Livro</th>
-              <th>Data do Pedido</th>
-              <th>Data de Retirada (Dia)</th>
-              <th>Duração (Tempo)</th>
-              <th>Devolução Prevista</th>
-              <th>Unidade de Retirada</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="userRentalsTableBody">
-            <!-- Rendered by JS -->
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- VIEW 4: ADMIN DASHBOARD -->
+    <!-- VIEW 3: ADMIN DASHBOARD -->
     <section id="viewAdminDashboard" class="view-section">
       <div class="section-header">
-        <h2 class="section-title"><i data-lucide="shield-check"></i> Painel de Administração Porta Fidei</h2>
+        <h2 class="section-title"><i data-lucide="shield-check"></i> Painel de Administração</h2>
         <span class="badge-status badge-approved">Modo Administrador Ativo</span>
       </div>
 
       <!-- Stats Grid -->
       <div class="admin-stats-grid">
         <div class="stat-card">
-          <div class="stat-icon"><i data-lucide="user-check"></i></div>
+          <div class="stat-icon"><i data-lucide="layers"></i></div>
           <div>
-            <div class="stat-value" id="statPendingUsers">0</div>
-            <div class="stat-label">Usuários Pendentes</div>
+            <div class="stat-value" id="statTotalBooks">0</div>
+            <div class="stat-label">Livros Cadastrados</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon"><i data-lucide="clock"></i></div>
+          <div class="stat-icon"><i data-lucide="archive"></i></div>
           <div>
-            <div class="stat-value" id="statPendingRentals">0</div>
-            <div class="stat-label">Aluguéis Pendentes</div>
+            <div class="stat-value" id="statTotalCopies">0</div>
+            <div class="stat-label">Total de Exemplares</div>
           </div>
         </div>
         <div class="stat-card">
@@ -218,62 +157,53 @@
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon"><i data-lucide="layers"></i></div>
+          <div class="stat-icon"><i data-lucide="alert-triangle"></i></div>
           <div>
-            <div class="stat-value" id="statTotalBooks">0</div>
-            <div class="stat-label">Livros Cadastrados</div>
+            <div class="stat-value" id="statUnavailableBooks">0</div>
+            <div class="stat-label">Livros Esgotados</div>
           </div>
         </div>
       </div>
 
       <!-- Admin Tabs Navigation -->
       <div class="admin-tabs">
-        <button class="admin-tab-btn active" id="adminTabUsers">
-          <i data-lucide="users"></i> Aprovação de Usuários
-        </button>
-        <button class="admin-tab-btn" id="adminTabRentals">
-          <i data-lucide="file-check"></i> Aprovação de Aluguéis
+        <button class="admin-tab-btn active" id="adminTabRentals">
+          <i data-lucide="file-check"></i> Aluguéis
         </button>
         <button class="admin-tab-btn" id="adminTabBooks">
           <i data-lucide="book-plus"></i> Gerenciar Acervo
         </button>
       </div>
 
-      <!-- TAB 1: USERS APPROVAL -->
-      <div id="adminTabUsersContent" class="admin-tab-content">
-        <div class="table-responsive">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Nome do Usuário</th>
-                <th>E-mail</th>
-                <th>Unidade Preferida</th>
-                <th>Data do Cadastro</th>
-                <th>Status Atual</th>
-                <th>Ação do Admin</th>
-              </tr>
-            </thead>
-            <tbody id="adminUsersTableBody">
-              <!-- Rendered by JS -->
-            </tbody>
-          </table>
+      <!-- TAB 1: RENTALS MANAGEMENT -->
+      <div id="adminTabRentalsContent" class="admin-tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <select id="rentalStatusFilter" class="search-select">
+              <option value="ALL">Todos os Status</option>
+              <option value="active" selected>Ativos</option>
+              <option value="returned">Devolvidos</option>
+              <option value="overdue">Atrasados</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" id="openNewRentalBtn">
+            <i data-lucide="plus-circle"></i> Registrar Novo Aluguel
+          </button>
         </div>
-      </div>
 
-      <!-- TAB 2: RENTALS APPROVAL -->
-      <div id="adminTabRentalsContent" class="admin-tab-content" style="display: none;">
         <div class="table-responsive">
           <table class="custom-table">
             <thead>
               <tr>
-                <th>Solicitante</th>
-                <th>Livro Solicitado</th>
-                <th>Dia da Retirada</th>
-                <th>Tempo de Empréstimo</th>
-                <th>Data Prevista Devolução</th>
-                <th>Unidade Retirada</th>
+                <th>Livro</th>
+                <th>Locatário</th>
+                <th>Contato</th>
+                <th>Data Retirada</th>
+                <th>Duração</th>
+                <th>Devolução Prevista</th>
+                <th>Unidade</th>
                 <th>Status</th>
-                <th>Decisão do Admin</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody id="adminRentalsTableBody">
@@ -283,12 +213,14 @@
         </div>
       </div>
 
-      <!-- TAB 3: MANAGE BOOKS -->
+      <!-- TAB 2: MANAGE BOOKS -->
       <div id="adminTabBooksContent" class="admin-tab-content" style="display: none;">
         <div style="display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem;">
           <!-- Add Book Form -->
           <div style="background: var(--bg-surface); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
             <h3 class="font-serif" style="margin-bottom: 1rem; color: var(--primary-gold);">Adicionar Novo Livro</h3>
+            <!-- Duplicate warning slot -->
+            <div id="duplicateWarning" class="duplicate-warning" style="display: none;"></div>
             <form id="addBookForm">
               <div class="form-group">
                 <label class="form-label">Título do Livro</label>
@@ -347,23 +279,34 @@
     </section>
   </main>
 
-  <!-- MODAL: SOLICITAÇÃO DE ALUGUEL -->
+  <!-- MODAL: REGISTRAR ALUGUEL (ADMIN) -->
   <div class="modal-overlay" id="rentalModal">
     <div class="modal-box">
       <div class="modal-header">
-        <h3 class="modal-title font-serif"><i data-lucide="calendar-plus"></i> Solicitar Aluguel de Livro</h3>
+        <h3 class="modal-title font-serif"><i data-lucide="calendar-plus"></i> Registrar Novo Aluguel</h3>
         <button class="modal-close-btn" id="closeRentalModalBtn">&times;</button>
       </div>
-      <form id="rentalRequestForm">
-        <input type="hidden" id="modalBookId">
-
-        <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; border: 1px solid var(--border-subtle);">
-          <div style="font-weight: 700; font-size: 1.05rem; color: var(--primary-gold);" id="modalBookTitle">Confissões</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary);" id="modalBookAuthor">Santo Agostinho</div>
+      <form id="rentalForm">
+        <div class="form-group">
+          <label class="form-label" for="rentalBookSelect">Livro</label>
+          <select id="rentalBookSelect" class="form-control" required>
+            <option value="">Selecione um livro...</option>
+          </select>
+          <small id="rentalBookStock" class="form-hint" style="display: none;"></small>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="rentalStartDate">Dia da Retirada (Início)</label>
+          <label class="form-label" for="rentalRenterName">Nome do Locatário</label>
+          <input type="text" id="rentalRenterName" class="form-control" placeholder="Ex: João Silva" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="rentalRenterContact">Contato (telefone ou e-mail)</label>
+          <input type="text" id="rentalRenterContact" class="form-control" placeholder="Ex: (11) 99999-9999">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="rentalStartDate">Data de Retirada</label>
           <input type="date" id="rentalStartDate" class="form-control" required>
         </div>
 
@@ -378,9 +321,9 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="rentalLocation">Unidade onde deseja alugar o livro</label>
-          <select id="rentalLocation" class="form-control">
-            <!-- Options via JS -->
+          <label class="form-label" for="rentalLocationSelect">Unidade de Retirada</label>
+          <select id="rentalLocationSelect" class="form-control">
+            <!-- Populated by JS -->
           </select>
         </div>
 
@@ -391,7 +334,7 @@
         <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
           <button type="button" class="btn btn-secondary" id="cancelRentalModalBtn">Cancelar</button>
           <button type="submit" class="btn btn-primary">
-            <i data-lucide="send"></i> Enviar Solicitação
+            <i data-lucide="check-circle"></i> Registrar Aluguel
           </button>
         </div>
       </form>
@@ -456,44 +399,13 @@
     </div>
   </div>
 
-  <!-- MODAL: SIMULAÇÃO DE ENVIO DE E-MAIL -->
-  <div class="modal-overlay" id="emailModal">
-    <div class="modal-box" style="border-color: var(--primary-gold);">
-      <div class="modal-header">
-        <h3 class="modal-title font-serif" style="color: var(--primary-gold); display: flex; align-items: center; gap: 0.5rem;">
-          <i data-lucide="mail-check"></i> E-mail de Notificação Enviado!
-        </h3>
-        <button class="modal-close-btn" id="closeEmailModalBtn">&times;</button>
-      </div>
-      <div style="background: var(--bg-surface-elevated); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); margin-bottom: 1.25rem;">
-        <div style="margin-bottom: 0.6rem; font-size: 0.88rem; color: var(--text-secondary);">
-          <strong>De:</strong> sistema@portafidei.com (Biblioteca Porta Fidei)
-        </div>
-        <div style="margin-bottom: 0.6rem; font-size: 0.88rem; color: var(--text-secondary);">
-          <strong>Para:</strong> <span id="emailModalRecipient" style="color: var(--primary-gold); font-weight: 600;">-</span>
-        </div>
-        <div style="margin-bottom: 0.85rem; font-size: 0.95rem; font-weight: 700; color: var(--text-primary); border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.5rem;">
-          <strong>Assunto:</strong> <span id="emailModalSubject">-</span>
-        </div>
-        <div style="font-size: 0.9rem; line-height: 1.6; color: var(--text-primary); white-space: pre-line;" id="emailModalBody">
-          -
-        </div>
-      </div>
-      <div style="display: flex; justify-content: flex-end;">
-        <button class="btn btn-primary btn-sm" id="confirmEmailModalBtn">
-          <i data-lucide="check"></i> Compreendido
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Footer -->
   <footer class="footer">
     <p>© 2026 <span class="footer-gold">Biblioteca Porta Fidei</span>. Todos os direitos reservados.</p>
-    <p style="font-size: 0.78rem; margin-top: 0.4rem;">Sistema de Gestão e Aluguel de Livros | Aprovação por Administrador</p>
+    <p style="font-size: 0.78rem; margin-top: 0.4rem;">Biblioteca Porta Fidei | Sabedoria & Fé</p>
   </footer>
 
   <!-- Main JavaScript File -->
