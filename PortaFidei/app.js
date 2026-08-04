@@ -91,6 +91,10 @@
       return await this.request(`/books/${bookId}`, 'DELETE');
     }
 
+    static async importBooks(books) {
+      return await this.request('/books/import', 'POST', { books });
+    }
+
     static async getRentals(params = {}) {
       const query = new URLSearchParams(params).toString();
       return await this.request(`/rentals${query ? '?' + query : ''}`);
@@ -846,6 +850,50 @@
     categoryFilterSelect.addEventListener('change', renderCatalog);
     authorFilterSelect.addEventListener('change', renderCatalog);
     searchSubmitBtn.addEventListener('click', renderCatalog);
+
+    // Import XLSX button & file handler
+    const importXlsxBtn = document.getElementById('importXlsxBtn');
+    const xlsxFileInput = document.getElementById('xlsxFileInput');
+
+    if (importXlsxBtn && xlsxFileInput) {
+      importXlsxBtn.addEventListener('click', () => xlsxFileInput.click());
+
+      xlsxFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (typeof XLSX === 'undefined') {
+          showToast('Biblioteca XLSX ainda não foi carregada. Tente novamente em instantes.', 'error');
+          return;
+        }
+
+        try {
+          showToast('Lendo e processando arquivo XLSX...', 'info');
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rawJson = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+          if (rawJson.length === 0) {
+            showToast('O arquivo selecionado está vazio.', 'error');
+            xlsxFileInput.value = '';
+            return;
+          }
+
+          const res = await API.importBooks(rawJson);
+          showToast(`🎉 Importação concluída! ${res.count} livro(s) importado(s) com sucesso.`, 'success');
+          xlsxFileInput.value = '';
+
+          await renderAdminDashboard();
+          await renderCatalog();
+          await populateAuthorFilter();
+        } catch (err) {
+          showToast(err.message || 'Erro ao processar arquivo XLSX.', 'error');
+          xlsxFileInput.value = '';
+        }
+      });
+    }
   }
 
   // --- INITIALIZATION ---

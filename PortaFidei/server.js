@@ -156,6 +156,79 @@ app.delete('/api/books/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// 8.5. BOOKS: Import Multiple Books (XLSX / CSV)
+app.post('/api/books/import', authenticateToken, async (req, res) => {
+  try {
+    const { books } = req.body;
+    if (!Array.isArray(books) || books.length === 0) {
+      return res.status(400).json({ error: 'Nenhum livro válido encontrado para importação.' });
+    }
+
+    const locations = await db.getLocations();
+    const locMap = {};
+    locations.forEach(l => {
+      locMap[l.name.toLowerCase().trim()] = l.id;
+      locMap[l.id.toLowerCase().trim()] = l.id;
+    });
+
+    let importedCount = 0;
+
+    for (let item of books) {
+      let title = '', author = '', category = 'Espiritualidade', rawLoc = '', copies = 1;
+
+      if (typeof item === 'object' && item !== null) {
+        const values = Object.values(item);
+
+        // Caso 1: Objeto de coluna única com valores separados por pipe (ex: "O Castelo Interior | Santa Teresa | ...")
+        if (values.length === 1 && typeof values[0] === 'string' && values[0].includes('|')) {
+          const parts = values[0].split('|').map(s => s.trim());
+          title = parts[0] || '';
+          author = parts[1] || '';
+          category = parts[2] || 'Espiritualidade';
+          rawLoc = parts[3] || '';
+          copies = parseInt(parts[4] || 1, 10) || 1;
+        } else if (typeof item[Object.keys(item)[0]] === 'string' && Object.keys(item)[0].includes('|')) {
+          // Caso 2: Header único com nome "titulo|autor|..."
+          const pipeHeaderKey = Object.keys(item)[0];
+          const pipeValKey = item[pipeHeaderKey];
+          const parts = pipeValKey.toString().split('|').map(s => s.trim());
+          title = parts[0] || '';
+          author = parts[1] || '';
+          category = parts[2] || 'Espiritualidade';
+          rawLoc = parts[3] || '';
+          copies = parseInt(parts[4] || 1, 10) || 1;
+        } else {
+          // Caso 3: Colunas Excel normais (titulo, autor, categoria, unidade, exemplares)
+          title = (item.titulo || item.title || item.Título || item['TÍTULO'] || '').toString().trim();
+          author = (item.autor || item.author || item.Autor || item['AUTOR'] || '').toString().trim();
+          category = (item.categoria || item.category || item.Categoria || item['CATEGORIA'] || 'Espiritualidade').toString().trim();
+          rawLoc = (item.unidade || item.location || item.Unidade || item.location_id || item['UNIDADE'] || '').toString().trim();
+          copies = parseInt(item.exemplares || item.copies || item.Exemplares || item.copies_total || item['EXEMPLARES'] || 1, 10) || 1;
+        }
+      }
+
+      if (!title || !author) continue;
+
+      let location_id = locMap[rawLoc.toLowerCase()] || locations[0]?.id || 'loc-1';
+
+      await db.createBook({
+        title,
+        author,
+        category,
+        cover: 'assets/confissoes.png',
+        location_id,
+        copies_total: copies
+      });
+      importedCount++;
+    }
+
+    res.json({ success: true, count: importedCount });
+  } catch (err) {
+    console.error('Erro na importação:', err);
+    res.status(500).json({ error: 'Erro ao importar acervo.' });
+  }
+});
+
 // 9. RENTALS: List all (com filtros)
 app.get('/api/rentals', authenticateToken, async (req, res) => {
   try {

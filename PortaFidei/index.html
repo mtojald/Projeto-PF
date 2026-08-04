@@ -6,6 +6,8 @@
   <title>Porta Fidei - Biblioteca</title>
   <meta name="description" content="Biblioteca Porta Fidei — catálogo de livros e sistema de aluguel. Sabedoria e Fé.">
   <link rel="stylesheet" href="style.css">
+  <!-- SheetJS CDN para importação de XLSX -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -215,6 +217,19 @@
 
       <!-- TAB 2: MANAGE BOOKS -->
       <div id="adminTabBooksContent" class="admin-tab-content" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; background: var(--bg-surface); padding: 0.85rem 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+          <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">
+            <i data-lucide="info" style="width: 18px; height: 18px; color: var(--primary-gold);"></i>
+            <span>Formato do arquivo XLSX: <strong>titulo | autor | categoria | unidade | exemplares</strong></span>
+          </div>
+          <div>
+            <input type="file" id="xlsxFileInput" accept=".xlsx, .xls, .csv" style="display: none;">
+            <button class="btn btn-secondary btn-sm" id="importXlsxBtn">
+              <i data-lucide="file-up"></i> Importar Acervo (XLSX)
+            </button>
+          </div>
+        </div>
+
         <div style="display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem;">
           <!-- Add Book Form -->
           <div style="background: var(--bg-surface); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
