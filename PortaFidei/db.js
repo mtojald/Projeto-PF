@@ -35,11 +35,33 @@ const Repository = {
     return data.user;
   },
 
-  async loginAdmin({ email, password }) {
-    const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
+  async loginAdmin({ identifier, email, password }) {
+    let emailToUse = (identifier || email || '').trim().toLowerCase();
+
+    // Se o usuário digitou nome de usuário em vez de e-mail (ex: "cacaia")
+    if (!emailToUse.includes('@')) {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .or(`username.ilike.${emailToUse},name.ilike.${emailToUse}`)
+        .limit(1)
+        .single();
+
+      if (profile && profile.id) {
+        const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+        if (authUserData?.user?.email) {
+          emailToUse = authUserData.user.email;
+        }
+      }
+    }
+
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({
+      email: emailToUse,
+      password: password.trim()
+    });
 
     if (error) {
-      throw new Error('E-mail ou senha incorretos.');
+      throw new Error('Usuário/E-mail ou senha incorretos.');
     }
 
     // Buscar perfil na tabela profiles para verificar se é admin

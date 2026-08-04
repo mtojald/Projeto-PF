@@ -90,8 +90,8 @@
         </div>
         <form id="loginForm">
           <div class="form-group">
-            <label class="form-label" for="loginEmail">E-mail</label>
-            <input type="email" id="loginEmail" class="form-control" placeholder="admin@portafidei.com" required>
+            <label class="form-label" for="loginEmail">E-mail ou Usuário</label>
+            <input type="text" id="loginEmail" class="form-control" placeholder="admin@portafidei.com ou seu_usuario" required>
           </div>
           <div class="form-group">
             <label class="form-label" for="loginPassword">Senha</label>
@@ -220,7 +220,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; background: var(--bg-surface); padding: 0.85rem 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
           <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">
             <i data-lucide="info" style="width: 18px; height: 18px; color: var(--primary-gold);"></i>
-            <span>Formato do arquivo XLSX: <strong>titulo | autor | categoria | unidade | exemplares</strong></span>
+            <span>Formato do arquivo XLSX: <strong>titulo | autor | categoria | unidade | exemplares | capa (opcional)</strong></span>
           </div>
           <div>
             <input type="file" id="xlsxFileInput" accept=".xlsx, .xls, .csv" style="display: none;">
@@ -267,6 +267,19 @@
               <div class="form-group">
                 <label class="form-label">Quantidade de Exemplares</label>
                 <input type="number" id="newBookCopies" class="form-control" min="1" value="3" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Foto de Capa</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                  <input type="file" id="newBookCoverFile" accept="image/*" style="display: none;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="newBookCoverBtn">
+                    <i data-lucide="image-plus"></i> Selecionar Foto
+                  </button>
+                  <span id="newBookCoverFileName" style="font-size: 0.8rem; color: var(--text-muted);">Capa padrão</span>
+                </div>
+                <div id="newBookCoverPreviewWrap" style="margin-top: 0.5rem; display: none;">
+                  <img id="newBookCoverPreview" src="" alt="Prévia da Capa" style="max-height: 90px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                </div>
               </div>
               <button type="submit" class="btn btn-primary btn-full">
                 <i data-lucide="plus-circle"></i> Cadastrar Livro
@@ -413,6 +426,20 @@
           <div class="form-group">
             <label class="form-label" for="editBookCopiesAvailable">Exemplares Disponíveis</label>
             <input type="number" id="editBookCopiesAvailable" class="form-control" min="0" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Foto de Capa</label>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <input type="file" id="editBookCoverFile" accept="image/*" style="display: none;">
+            <button type="button" class="btn btn-secondary btn-sm" id="editBookCoverBtn">
+              <i data-lucide="image-plus"></i> Alterar Foto
+            </button>
+            <span id="editBookCoverFileName" style="font-size: 0.8rem; color: var(--text-muted);">Manter capa atual</span>
+          </div>
+          <div id="editBookCoverPreviewWrap" style="margin-top: 0.5rem;">
+            <img id="editBookCoverPreview" src="" alt="Prévia da Capa" style="max-height: 90px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
           </div>
         </div>
 

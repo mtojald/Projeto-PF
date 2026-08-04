@@ -49,14 +49,15 @@ async function authenticateToken(req, res, next) {
 // 1. AUTH: Login (admin-only)
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
+    const identifier = (email || username || '').trim();
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Informe o e-mail e a senha.' });
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'Informe o e-mail/usuário e a senha.' });
     }
 
     const { access_token, refresh_token, profile } = await db.loginAdmin({
-      email: email.trim().toLowerCase(),
+      identifier,
       password: password.trim()
     });
 
@@ -66,7 +67,7 @@ app.post('/api/auth/login', async (req, res) => {
       user: profile
     });
   } catch (err) {
-    res.status(400).json({ error: err.message || 'E-mail ou senha incorretos.' });
+    res.status(400).json({ error: err.message || 'Usuário/E-mail ou senha incorretos.' });
   }
 });
 
@@ -184,12 +185,12 @@ app.post('/api/books/import', authenticateToken, async (req, res) => {
     let importedCount = 0;
 
     for (let item of books) {
-      let title = '', author = '', category = 'Espiritualidade', rawLoc = '', copies = 1;
+      let title = '', author = '', category = 'Espiritualidade', rawLoc = '', copies = 1, cover = 'assets/confissoes.png';
 
       if (typeof item === 'object' && item !== null) {
         const values = Object.values(item);
 
-        // Caso 1: Objeto de coluna única com valores separados por pipe (ex: "O Castelo Interior | Santa Teresa | ...")
+        // Caso 1: Objeto de coluna única com valores separados por pipe (ex: "O Castelo Interior | Santa Teresa | ... | http://...")
         if (values.length === 1 && typeof values[0] === 'string' && values[0].includes('|')) {
           const parts = values[0].split('|').map(s => s.trim());
           title = parts[0] || '';
@@ -197,6 +198,7 @@ app.post('/api/books/import', authenticateToken, async (req, res) => {
           category = parts[2] || 'Espiritualidade';
           rawLoc = parts[3] || '';
           copies = parseInt(parts[4] || 1, 10) || 1;
+          if (parts[5]) cover = parts[5];
         } else if (typeof item[Object.keys(item)[0]] === 'string' && Object.keys(item)[0].includes('|')) {
           // Caso 2: Header único com nome "titulo|autor|..."
           const pipeHeaderKey = Object.keys(item)[0];
@@ -207,13 +209,15 @@ app.post('/api/books/import', authenticateToken, async (req, res) => {
           category = parts[2] || 'Espiritualidade';
           rawLoc = parts[3] || '';
           copies = parseInt(parts[4] || 1, 10) || 1;
+          if (parts[5]) cover = parts[5];
         } else {
-          // Caso 3: Colunas Excel normais (titulo, autor, categoria, unidade, exemplares)
+          // Caso 3: Colunas Excel normais (titulo, autor, categoria, unidade, exemplares, capa/imagem/cover)
           title = (item.titulo || item.title || item.Título || item['TÍTULO'] || '').toString().trim();
           author = (item.autor || item.author || item.Autor || item['AUTOR'] || '').toString().trim();
           category = (item.categoria || item.category || item.Categoria || item['CATEGORIA'] || 'Espiritualidade').toString().trim();
           rawLoc = (item.unidade || item.location || item.Unidade || item.location_id || item['UNIDADE'] || '').toString().trim();
           copies = parseInt(item.exemplares || item.copies || item.Exemplares || item.copies_total || item['EXEMPLARES'] || 1, 10) || 1;
+          cover = (item.capa || item.cover || item.imagem || item.url || item.url_imagem || item.Capa || item.Imagem || item['CAPA'] || item['IMAGEM'] || item['COVER'] || 'assets/confissoes.png').toString().trim() || 'assets/confissoes.png';
         }
       }
 
@@ -225,7 +229,7 @@ app.post('/api/books/import', authenticateToken, async (req, res) => {
         title,
         author,
         category,
-        cover: 'assets/confissoes.png',
+        cover,
         location_id,
         copies_total: copies
       });

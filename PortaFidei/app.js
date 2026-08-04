@@ -202,7 +202,52 @@
   const closeEditBookModalBtn = document.getElementById('closeEditBookModalBtn');
   const cancelEditBookModalBtn = document.getElementById('cancelEditBookModalBtn');
 
+  // Cover photo upload elements
+  let currentNewBookCoverUrl = 'assets/confissoes.png';
+  let currentEditBookCoverUrl = null;
+
+  const newBookCoverFile = document.getElementById('newBookCoverFile');
+  const newBookCoverBtn = document.getElementById('newBookCoverBtn');
+  const newBookCoverFileName = document.getElementById('newBookCoverFileName');
+  const newBookCoverPreview = document.getElementById('newBookCoverPreview');
+  const newBookCoverPreviewWrap = document.getElementById('newBookCoverPreviewWrap');
+
+  const editBookCoverFile = document.getElementById('editBookCoverFile');
+  const editBookCoverBtn = document.getElementById('editBookCoverBtn');
+  const editBookCoverFileName = document.getElementById('editBookCoverFileName');
+  const editBookCoverPreview = document.getElementById('editBookCoverPreview');
+
   const toastContainer = document.getElementById('toastContainer');
+
+  // --- HELPER FUNCTIONS ---
+  function compressImageFile(file, maxWidth = 600, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
   // --- HELPER FUNCTIONS ---
   function showToast(message, type = 'info') {
@@ -699,6 +744,10 @@
       editBookCopiesTotal.value = book.copies_total;
       editBookCopiesAvailable.value = book.copies_available;
 
+      currentEditBookCoverUrl = book.cover || 'assets/confissoes.png';
+      if (editBookCoverPreview) editBookCoverPreview.src = currentEditBookCoverUrl;
+      if (editBookCoverFileName) editBookCoverFileName.textContent = 'Manter capa atual';
+
       editBookModal.classList.add('open');
     } catch (err) {
       showToast('Erro ao carregar dados do livro.', 'error');
@@ -853,6 +902,44 @@
       });
     }
 
+    // Cover photo upload handlers
+    if (newBookCoverBtn && newBookCoverFile) {
+      newBookCoverBtn.addEventListener('click', () => newBookCoverFile.click());
+      newBookCoverFile.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          showToast('Processando foto da capa...', 'info');
+          const compressed = await compressImageFile(file);
+          currentNewBookCoverUrl = compressed;
+          if (newBookCoverPreview) newBookCoverPreview.src = compressed;
+          if (newBookCoverPreviewWrap) newBookCoverPreviewWrap.style.display = 'block';
+          if (newBookCoverFileName) newBookCoverFileName.textContent = file.name;
+        } catch (err) {
+          showToast('Erro ao carregar foto.', 'error');
+        }
+      });
+    }
+
+    if (editBookCoverBtn && editBookCoverFile) {
+      editBookCoverBtn.addEventListener('click', () => editBookCoverFile.click());
+      editBookCoverFile.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          showToast('Processando nova foto...', 'info');
+          const compressed = await compressImageFile(file);
+          currentEditBookCoverUrl = compressed;
+          if (editBookCoverPreview) editBookCoverPreview.src = compressed;
+          if (editBookCoverFileName) editBookCoverFileName.textContent = file.name;
+        } catch (err) {
+          showToast('Erro ao carregar foto.', 'error');
+        }
+      });
+    }
+
     // Edit book modal
     if (closeEditBookModalBtn) closeEditBookModalBtn.addEventListener('click', closeEditBookModal);
     if (cancelEditBookModalBtn) cancelEditBookModalBtn.addEventListener('click', closeEditBookModal);
@@ -879,15 +966,20 @@
         const category = await resolveCategoryValue(editBookCategory, editBookCategoryCustom, editCategoryCustomWrapper);
         if (!category) return;
 
+        const updatePayload = {
+          title: editBookTitle.value.trim(),
+          author: editBookAuthor.value.trim(),
+          category,
+          location_id: editBookLocation.value,
+          copies_total,
+          copies_available
+        };
+        if (currentEditBookCoverUrl) {
+          updatePayload.cover = currentEditBookCoverUrl;
+        }
+
         try {
-          await API.updateBook(bookId, {
-            title: editBookTitle.value.trim(),
-            author: editBookAuthor.value.trim(),
-            category,
-            location_id: editBookLocation.value,
-            copies_total,
-            copies_available
-          });
+          await API.updateBook(bookId, updatePayload);
 
           closeEditBookModal();
           showToast('Livro atualizado com sucesso!', 'success');
@@ -919,7 +1011,7 @@
           title,
           author,
           category,
-          cover: 'assets/confissoes.png',
+          cover: currentNewBookCoverUrl || 'assets/confissoes.png',
           location_id,
           copies_total
         });
@@ -930,6 +1022,9 @@
 
         showToast(`Livro "${title}" cadastrado com sucesso!`, 'success');
         addBookForm.reset();
+        currentNewBookCoverUrl = 'assets/confissoes.png';
+        if (newBookCoverPreviewWrap) newBookCoverPreviewWrap.style.display = 'none';
+        if (newBookCoverFileName) newBookCoverFileName.textContent = 'Capa padrão';
         if (newCategoryCustomWrapper) newCategoryCustomWrapper.style.display = 'none';
         duplicateWarning.style.display = 'none';
         await renderAdminDashboard();
