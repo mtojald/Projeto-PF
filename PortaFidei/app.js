@@ -115,17 +115,38 @@
     static async getAdminStats() {
       return await this.request('/admin/stats');
     }
+
+    static async getReviews(params = {}) {
+      const query = new URLSearchParams(params).toString();
+      return await this.request(`/reviews${query ? '?' + query : ''}`);
+    }
+
+    static async checkDuplicateReview(book_title, exclude_id = '') {
+      const query = new URLSearchParams({ book_title });
+      if (exclude_id) query.set('exclude_id', exclude_id);
+      return await this.request(`/reviews/check-duplicate?${query.toString()}`);
+    }
+
+    static async createReview(reviewData) {
+      return await this.request('/reviews', 'POST', reviewData);
+    }
+
+    static async updateReview(reviewId, reviewData) {
+      return await this.request(`/reviews/${reviewId}`, 'PUT', reviewData);
+    }
   }
 
   // --- APP STATE ---
   let currentUser = API.getCurrentUser();
   let currentActiveView = 'viewCatalog';
   let rentalBooksCache = [];
+  let currentReviewsCache = [];
 
   // --- DOM ELEMENTS ---
   const views = {
     viewLogin: document.getElementById('viewLogin'),
     viewCatalog: document.getElementById('viewCatalog'),
+    viewReviews: document.getElementById('viewReviews'),
     viewAdminDashboard: document.getElementById('viewAdminDashboard')
   };
 
@@ -133,6 +154,7 @@
   const navLinksContainer = document.getElementById('navLinksContainer');
   const navCatalogBtn = document.getElementById('navCatalogBtn');
   const navAdminBtn = document.getElementById('navAdminBtn');
+  const navReviewsBtn = document.getElementById('navReviewsBtn');
   const adminActiveBadge = document.getElementById('adminActiveBadge');
   const authNavSlot = document.getElementById('authNavSlot');
   const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -148,6 +170,22 @@
 
   // Login
   const loginForm = document.getElementById('loginForm');
+
+  // Reviews Alma Pequenina
+  const openNewReviewBtn = document.getElementById('openNewReviewBtn');
+  const reviewsGridContainer = document.getElementById('reviewsGridContainer');
+  const reviewModal = document.getElementById('reviewModal');
+  const reviewForm = document.getElementById('reviewForm');
+  const reviewId = document.getElementById('reviewId');
+  const reviewBookTitle = document.getElementById('reviewBookTitle');
+  const reviewBookAuthor = document.getElementById('reviewBookAuthor');
+  const reviewRating = document.getElementById('reviewRating');
+  const reviewOpinion = document.getElementById('reviewOpinion');
+  const reviewPinned = document.getElementById('reviewPinned');
+  const reviewDuplicateWarning = document.getElementById('reviewDuplicateWarning');
+  const reviewSubmitBtn = document.getElementById('reviewSubmitBtn');
+  const closeReviewModalBtn = document.getElementById('closeReviewModalBtn');
+  const cancelReviewModalBtn = document.getElementById('cancelReviewModalBtn');
 
   // Admin Dashboard
   const statTotalBooks = document.getElementById('statTotalBooks');
@@ -274,6 +312,15 @@
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
 
+  function escapeHtml(value = '') {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function calculateReturnDate(startDateStr, durationDays) {
     if (!startDateStr) return '-';
     const date = new Date(startDateStr + 'T00:00:00');
@@ -296,10 +343,12 @@
 
     if (navCatalogBtn) navCatalogBtn.classList.toggle('active', viewName === 'viewCatalog');
     if (navAdminBtn) navAdminBtn.classList.toggle('active', viewName === 'viewAdminDashboard');
+    if (navReviewsBtn) navReviewsBtn.classList.toggle('active', viewName === 'viewReviews');
     const areaLabel = document.getElementById('currentAreaLabel');
-    if (areaLabel) areaLabel.textContent = viewName === 'viewAdminDashboard' ? 'Painel admin' : viewName === 'viewLogin' ? 'Acesso' : 'Acervo';
+    if (areaLabel) areaLabel.textContent = viewName === 'viewAdminDashboard' ? 'Painel admin' : viewName === 'viewReviews' ? 'Reviews Alma Pequenina' : viewName === 'viewLogin' ? 'Acesso' : 'Acervo';
 
     if (viewName === 'viewCatalog') renderCatalog();
+    if (viewName === 'viewReviews') renderReviews();
     if (viewName === 'viewAdminDashboard') renderAdminDashboard();
     if (window.lucide) window.lucide.createIcons();
   }
@@ -314,6 +363,7 @@
     // Admin nav button only visible when logged in
     const adminNavItem = navAdminBtn ? (navAdminBtn.closest('li') || navAdminBtn) : null;
     if (adminNavItem) adminNavItem.style.display = currentUser ? '' : 'none';
+    if (openNewReviewBtn) openNewReviewBtn.style.display = currentUser ? 'inline-flex' : 'none';
 
     if (currentUser) {
       authNavSlot.innerHTML = `
@@ -489,6 +539,71 @@
       `;
       if (window.lucide) window.lucide.createIcons();
       showToast('Erro ao carregar catálogo de livros.', 'error');
+    }
+  }
+
+  // --- RENDER REVIEWS ALMA PEQUENINA ---
+  async function renderReviews() {
+    if (!reviewsGridContainer) return;
+
+    try {
+      const reviews = await API.getReviews();
+      currentReviewsCache = reviews || [];
+
+      if (currentReviewsCache.length === 0) {
+        reviewsGridContainer.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <i data-lucide="heart-handshake"></i>
+            <h3>Ainda não há reviews publicadas</h3>
+            <p>${currentUser ? 'Comece a curadoria adicionando a primeira leitura.' : 'Em breve, novas leituras recomendadas por aqui.'}</p>
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+        return;
+      }
+
+      const isAdmin = !!currentUser;
+      reviewsGridContainer.innerHTML = currentReviewsCache.map(review => {
+        const rating = Number(review.rating);
+        const ratingText = Number.isInteger(rating) ? String(rating) : rating.toFixed(1).replace('.', ',');
+        const pinnedBadge = review.is_pinned
+          ? `<span class="review-pinned-badge"><i data-lucide="pin"></i> Fixada no topo</span>`
+          : '';
+        const editAction = isAdmin
+          ? `<button class="review-edit-btn edit-review-btn" type="button" data-review-id="${escapeHtml(review.id)}"><i data-lucide="pencil"></i> Editar</button>`
+          : '';
+
+        return `
+          <article class="review-card ${review.is_pinned ? 'is-pinned' : ''}">
+            <div class="review-card-header">
+              <div class="review-book-meta">
+                <h2 class="review-book-title">${escapeHtml(review.book_title)}</h2>
+                <p class="review-book-author">por ${escapeHtml(review.author)}</p>
+              </div>
+              <div class="review-rating-bubble"><span class="review-rating-value">${ratingText}</span><span class="review-rating-label">de 10</span></div>
+            </div>
+            ${pinnedBadge}
+            <p class="review-opinion">${escapeHtml(review.opinion)}</p>
+            <div class="review-card-footer"><span class="review-date">Atualizada em ${formatDateBR(review.updated_at || review.created_at)}</span>${editAction}</div>
+          </article>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.edit-review-btn').forEach(btn => {
+        btn.addEventListener('click', () => openReviewModal(btn.getAttribute('data-review-id')));
+      });
+
+      if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+      reviewsGridContainer.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1;">
+          <i data-lucide="wifi-off"></i>
+          <h3>Não foi possível carregar as reviews</h3>
+          <p>Verifique a conexão com o Supabase e tente novamente.</p>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+      showToast('Erro ao carregar reviews.', 'error');
     }
   }
 
@@ -816,6 +931,108 @@
     }
   }
 
+  // --- REVIEW ACTIONS ---
+  async function openReviewModal(editReviewId = null) {
+    if (!currentUser || !reviewModal) return;
+
+    let review = null;
+    if (editReviewId) {
+      review = currentReviewsCache.find(item => item.id === editReviewId) || null;
+      if (!review) {
+        const reviews = await API.getReviews();
+        currentReviewsCache = reviews || [];
+        review = currentReviewsCache.find(item => item.id === editReviewId) || null;
+      }
+    }
+
+    reviewId.value = review?.id || '';
+    reviewBookTitle.value = review?.book_title || '';
+    reviewBookAuthor.value = review?.author || '';
+    reviewRating.value = review?.rating ?? '';
+    reviewOpinion.value = review?.opinion || '';
+    reviewPinned.checked = Boolean(review?.is_pinned);
+    reviewDuplicateWarning.style.display = 'none';
+
+    const title = document.getElementById('reviewModalTitle');
+    if (title) title.textContent = review ? 'Editar review' : 'Publicar review';
+    if (reviewSubmitBtn) reviewSubmitBtn.innerHTML = `<i data-lucide="${review ? 'save' : 'send'}"></i> ${review ? 'Salvar alterações' : 'Publicar review'}`;
+
+    reviewModal.classList.add('open');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeReviewModal() {
+    if (reviewModal) reviewModal.classList.remove('open');
+  }
+
+  let reviewDuplicateCheckTimeout = null;
+  function handleReviewDuplicateCheck() {
+    clearTimeout(reviewDuplicateCheckTimeout);
+    const title = reviewBookTitle.value.trim();
+    if (!currentUser || title.length < 3) {
+      reviewDuplicateWarning.style.display = 'none';
+      return;
+    }
+
+    reviewDuplicateCheckTimeout = setTimeout(async () => {
+      try {
+        const result = await API.checkDuplicateReview(title, reviewId.value);
+        if (result.duplicate) {
+          reviewDuplicateWarning.style.display = 'block';
+          reviewDuplicateWarning.innerHTML = `<strong>Já existe uma review para este livro.</strong><br><span>Livro: “${escapeHtml(result.review.book_title)}”. Você pode editar a review existente em vez de criar outra.</span>`;
+        } else {
+          reviewDuplicateWarning.style.display = 'none';
+        }
+      } catch {
+        reviewDuplicateWarning.style.display = 'none';
+      }
+    }, 450);
+  }
+
+  async function handleReviewSubmit(e) {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    const book_title = reviewBookTitle.value.trim();
+    const author = reviewBookAuthor.value.trim();
+    const opinion = reviewOpinion.value.trim();
+    const rating = Number(reviewRating.value);
+    const is_pinned = reviewPinned.checked;
+
+    if (!book_title || !author || !opinion) {
+      showToast('Preencha livro, autor e opinião.', 'error');
+      return;
+    }
+    if (!Number.isFinite(rating) || rating < 0 || rating > 10) {
+      showToast('A nota deve estar entre 0 e 10.', 'error');
+      return;
+    }
+
+    try {
+      const duplicate = await API.checkDuplicateReview(book_title, reviewId.value);
+      if (duplicate.duplicate) {
+        reviewDuplicateWarning.style.display = 'block';
+        reviewDuplicateWarning.innerHTML = `<strong>Essa review não pode ser publicada.</strong><br><span>Já existe uma review para “${escapeHtml(duplicate.review.book_title)}”.</span>`;
+        showToast('Já existe uma review para este livro.', 'error');
+        return;
+      }
+
+      const payload = { book_title, author, rating, opinion, is_pinned };
+      if (reviewId.value) {
+        await API.updateReview(reviewId.value, payload);
+        showToast('Review atualizada com sucesso!', 'success');
+      } else {
+        await API.createReview(payload);
+        showToast('Review publicada com sucesso!', 'success');
+      }
+
+      closeReviewModal();
+      await renderReviews();
+    } catch (err) {
+      showToast(err.message || 'Erro ao salvar review.', 'error');
+    }
+  }
+
   // --- DUPLICATE CHECK ---
   let duplicateCheckTimeout = null;
   function handleDuplicateCheck() {
@@ -887,6 +1104,19 @@
 
     navCatalogBtn.addEventListener('click', () => switchView('viewCatalog'));
     navAdminBtn.addEventListener('click', () => switchView('viewAdminDashboard'));
+    if (navReviewsBtn) navReviewsBtn.addEventListener('click', () => switchView('viewReviews'));
+
+    // Reviews Alma Pequenina
+    if (openNewReviewBtn) openNewReviewBtn.addEventListener('click', () => openReviewModal());
+    if (reviewForm) reviewForm.addEventListener('submit', handleReviewSubmit);
+    if (reviewBookTitle) reviewBookTitle.addEventListener('input', handleReviewDuplicateCheck);
+    if (closeReviewModalBtn) closeReviewModalBtn.addEventListener('click', closeReviewModal);
+    if (cancelReviewModalBtn) cancelReviewModalBtn.addEventListener('click', closeReviewModal);
+    if (reviewModal) {
+      reviewModal.addEventListener('click', (event) => {
+        if (event.target === reviewModal) closeReviewModal();
+      });
+    }
 
     themeToggleBtn.addEventListener('click', () => {
       document.body.classList.toggle('dark-theme');
@@ -1177,6 +1407,7 @@
     await populateAuthorFilter();
     await populateCategoryDropdowns();
     switchView('viewCatalog');
+    await renderReviews();
 
     if (window.lucide) {
       window.lucide.createIcons();
