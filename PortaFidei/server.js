@@ -77,6 +77,7 @@ app.get('/api/locations', async (req, res) => {
     const locations = await db.getLocations();
     res.json(locations);
   } catch (err) {
+    console.error('Erro ao buscar unidades no Supabase:', err.message);
     res.status(500).json({ error: 'Erro ao buscar unidades.' });
   }
 });
@@ -88,6 +89,7 @@ app.get('/api/books', async (req, res) => {
     const books = await db.getBooks({ search, location_id, category, author });
     res.json(books);
   } catch (err) {
+    console.error('Erro ao buscar livros no Supabase:', err.message);
     res.status(500).json({ error: 'Erro ao buscar livros.' });
   }
 });

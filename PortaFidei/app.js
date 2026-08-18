@@ -120,6 +120,7 @@
   // --- APP STATE ---
   let currentUser = API.getCurrentUser();
   let currentActiveView = 'viewCatalog';
+  let rentalBooksCache = [];
 
   // --- DOM ELEMENTS ---
   const views = {
@@ -174,6 +175,7 @@
   // Rental Modal
   const rentalModal = document.getElementById('rentalModal');
   const rentalForm = document.getElementById('rentalForm');
+  const rentalBookId = document.getElementById('rentalBookId');
   const rentalBookSelect = document.getElementById('rentalBookSelect');
   const rentalBookStock = document.getElementById('rentalBookStock');
   const rentalRenterName = document.getElementById('rentalRenterName');
@@ -294,6 +296,8 @@
 
     if (navCatalogBtn) navCatalogBtn.classList.toggle('active', viewName === 'viewCatalog');
     if (navAdminBtn) navAdminBtn.classList.toggle('active', viewName === 'viewAdminDashboard');
+    const areaLabel = document.getElementById('currentAreaLabel');
+    if (areaLabel) areaLabel.textContent = viewName === 'viewAdminDashboard' ? 'Painel admin' : viewName === 'viewLogin' ? 'Acesso' : 'Acervo';
 
     if (viewName === 'viewCatalog') renderCatalog();
     if (viewName === 'viewAdminDashboard') renderAdminDashboard();
@@ -308,7 +312,8 @@
     navLinksContainer.style.display = 'flex';
 
     // Admin nav button only visible when logged in
-    if (navAdminBtn) navAdminBtn.closest('li').style.display = currentUser ? '' : 'none';
+    const adminNavItem = navAdminBtn ? (navAdminBtn.closest('li') || navAdminBtn) : null;
+    if (adminNavItem) adminNavItem.style.display = currentUser ? '' : 'none';
 
     if (currentUser) {
       authNavSlot.innerHTML = `
@@ -475,6 +480,14 @@
 
       if (window.lucide) window.lucide.createIcons();
     } catch (err) {
+      bookGridContainer.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1;">
+          <i data-lucide="wifi-off"></i>
+          <h3>Não foi possível carregar o acervo</h3>
+          <p>Verifique a conexão com o Supabase e tente novamente.</p>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
       showToast('Erro ao carregar catálogo de livros.', 'error');
     }
   }
@@ -501,7 +514,7 @@
       if (rentals.length === 0) {
         adminRentalsTableBody.innerHTML = `
           <tr>
-            <td colspan="9" class="empty-state">
+            <td colspan="7" class="empty-state">
               <i data-lucide="inbox" style="width: 36px; height: 36px;"></i>
               <p>Nenhum aluguel encontrado com este filtro.</p>
             </td>
@@ -527,11 +540,9 @@
 
           return `
             <tr>
-              <td><strong>${r.book_title || ''}</strong></td>
-              <td><strong>${r.renter_name}</strong></td>
-              <td>${r.renter_contact || '-'}</td>
-              <td>${formatDateBR(r.start_date)}</td>
-              <td>${r.duration_days} Dias</td>
+              <td><div class="rental-book-cell"><strong>${r.book_title || ''}</strong><span class="mono-id" title="${r.book_id}">${r.book_id || '-'}</span></div></td>
+              <td><div class="rental-book-cell"><strong>${r.renter_name}</strong><small>${r.renter_contact || '-'}</small></div></td>
+              <td>${formatDateBR(r.start_date)}<small class="table-subline">${r.duration_days} dias</small></td>
               <td>${formatDateBR(r.return_date)}</td>
               <td>${r.location_name || locMap[r.location_id] || '-'}</td>
               <td><span class="badge-status ${badgeClass}">${statusText}</span></td>
@@ -603,6 +614,7 @@
 
     try {
       const books = await API.getBooks();
+      rentalBooksCache = books;
       await populateLocationDropdowns();
 
       rentalBookSelect.innerHTML = `<option value="">Selecione um livro...</option>` +
@@ -617,12 +629,13 @@
 
       rentalRenterName.value = '';
       rentalRenterContact.value = '';
+      rentalBookId.value = preselectedBookId || '';
       rentalDurationDays.value = '14';
       if (rentalCustomDays) rentalCustomDays.value = '14';
       if (customDurationWrapper) customDurationWrapper.style.display = 'none';
 
       updateModalReturnDate();
-      updateBookStockHint();
+      syncRentalBookFromId();
 
       rentalModal.classList.add('open');
       if (window.lucide) window.lucide.createIcons();
@@ -634,11 +647,35 @@
   function updateBookStockHint() {
     const selectedOption = rentalBookSelect.options[rentalBookSelect.selectedIndex];
     if (selectedOption && selectedOption.value) {
+      rentalBookId.value = selectedOption.value;
       rentalBookStock.style.display = 'block';
       rentalBookStock.textContent = `📦 ${selectedOption.text.split('(').pop()?.replace(')', '') || ''}`;
     } else {
       rentalBookStock.style.display = 'none';
     }
+  }
+
+  function syncRentalBookFromId() {
+    const typedId = rentalBookId.value.trim().toLowerCase();
+    const matchedBook = rentalBooksCache.find(book => (book.id || '').toLowerCase() === typedId);
+
+    if (matchedBook) {
+      rentalBookSelect.value = matchedBook.id;
+      rentalBookStock.style.display = 'block';
+      rentalBookStock.textContent = matchedBook.copies_available > 0
+        ? `📦 ${matchedBook.copies_available} exemplar(es) disponível(is)`
+        : '⚠️ Este livro está sem exemplares disponíveis.';
+      return matchedBook;
+    }
+
+    rentalBookSelect.value = '';
+    if (typedId) {
+      rentalBookStock.style.display = 'block';
+      rentalBookStock.textContent = '⚠️ ID não localizado no acervo atual.';
+    } else {
+      rentalBookStock.style.display = 'none';
+    }
+    return null;
   }
 
   function getEffectiveDurationDays() {
@@ -676,7 +713,7 @@
     e.preventDefault();
     if (!currentUser) return;
 
-    const book_id = rentalBookSelect.value;
+    const book_id = rentalBookId.value.trim();
     const renter_name = rentalRenterName.value.trim();
     const renter_contact = rentalRenterContact.value.trim();
     const start_date = rentalStartDate.value;
@@ -684,7 +721,16 @@
     const location_id = rentalLocationSelect.value;
 
     if (!book_id) {
-      showToast('Selecione um livro para o aluguel.', 'error');
+      showToast('Informe o ID do livro para registrar o empréstimo.', 'error');
+      return;
+    }
+    const matchedBook = rentalBooksCache.find(book => (book.id || '').toLowerCase() === book_id.toLowerCase());
+    if (!matchedBook) {
+      showToast('O ID informado não corresponde a um livro disponível no acervo.', 'error');
+      return;
+    }
+    if (matchedBook.copies_available <= 0) {
+      showToast('Este livro está sem exemplares disponíveis.', 'error');
       return;
     }
     if (!renter_name) {
@@ -843,9 +889,9 @@
     navAdminBtn.addEventListener('click', () => switchView('viewAdminDashboard'));
 
     themeToggleBtn.addEventListener('click', () => {
-      document.body.classList.toggle('light-theme');
-      const isLight = document.body.classList.contains('light-theme');
-      themeToggleBtn.innerHTML = `<i data-lucide="${isLight ? 'moon' : 'sun'}"></i>`;
+      document.body.classList.toggle('dark-theme');
+      const isDark = document.body.classList.contains('dark-theme');
+      themeToggleBtn.innerHTML = `<i data-lucide="${isDark ? 'sun' : 'moon'}"></i>`;
       if (window.lucide) window.lucide.createIcons();
     });
 
@@ -882,6 +928,7 @@
       rentalCustomDays.addEventListener('keyup', updateModalReturnDate);
     }
     rentalBookSelect.addEventListener('change', updateBookStockHint);
+    rentalBookId.addEventListener('input', syncRentalBookFromId);
     closeRentalModalBtn.addEventListener('click', closeRentalModal);
     cancelRentalModalBtn.addEventListener('click', closeRentalModal);
 
