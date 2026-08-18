@@ -6,7 +6,10 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "lint": "node --check app.js && node --check db.js && node --check server.js && node --check tests/smoke.test.js",
+    "test": "node --test tests/smoke.test.js",
+    "build": "node --check app.js && node --check db.js && node --check server.js"
   },
   "keywords": [
     "porta-fidei",
