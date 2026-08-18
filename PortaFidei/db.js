@@ -6,8 +6,9 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+// SUPABASE_KEY is kept as a backwards-compatible alias for older .env files.
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_KEY) {
@@ -368,6 +369,104 @@ const Repository = {
     }
 
     return updated;
+  },
+
+  // --------------------------------------------------------------------
+  // REVIEWS (públicas, edição protegida pela API admin-only)
+  // --------------------------------------------------------------------
+  async getReviews() {
+    const { data, error } = await supabaseAdmin
+      .from('book_reviews')
+      .select('*')
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async findReviewByBookTitle(bookTitle, excludeId = '') {
+    const normalizedTitle = String(bookTitle || '').trim();
+    if (!normalizedTitle) return null;
+
+    // Escapa caracteres que o operador ILIKE interpreta como curingas.
+    const titlePattern = normalizedTitle.replace(/([%_\\])/g, '\\$1');
+    let query = supabaseAdmin
+      .from('book_reviews')
+      .select('*')
+      .ilike('book_title', titlePattern)
+      .limit(1);
+
+    if (excludeId) query = query.neq('id', excludeId);
+
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+
+  validateReviewPayload({ book_title, author, rating, opinion }) {
+    const normalizedRating = Number(rating);
+    if (!String(book_title || '').trim() || !String(author || '').trim() || !String(opinion || '').trim()) {
+      throw new Error('Livro, autor e opinião são obrigatórios.');
+    }
+    if (!Number.isFinite(normalizedRating) || normalizedRating < 0 || normalizedRating > 10) {
+      throw new Error('A nota deve estar entre 0 e 10.');
+    }
+
+    return {
+      book_title: String(book_title).trim(),
+      author: String(author).trim(),
+      rating: normalizedRating,
+      opinion: String(opinion).trim()
+    };
+  },
+
+  async createReview({ book_title, author, rating, opinion, is_pinned = false, created_by = null }) {
+    const payload = this.validateReviewPayload({ book_title, author, rating, opinion });
+    const duplicate = await this.findReviewByBookTitle(payload.book_title);
+    if (duplicate) throw new Error('Já existe uma review para este livro.');
+
+    if (is_pinned) {
+      const { error: unpinError } = await supabaseAdmin
+        .from('book_reviews')
+        .update({ is_pinned: false })
+        .eq('is_pinned', true);
+      if (unpinError) throw unpinError;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('book_reviews')
+      .insert([{ ...payload, is_pinned: Boolean(is_pinned), created_by }])
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateReview(reviewId, { book_title, author, rating, opinion, is_pinned = false }) {
+    const payload = this.validateReviewPayload({ book_title, author, rating, opinion });
+    const duplicate = await this.findReviewByBookTitle(payload.book_title, reviewId);
+    if (duplicate) throw new Error('Já existe uma review para este livro.');
+
+    if (is_pinned) {
+      const { error: unpinError } = await supabaseAdmin
+        .from('book_reviews')
+        .update({ is_pinned: false })
+        .eq('is_pinned', true)
+        .neq('id', reviewId);
+      if (unpinError) throw unpinError;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('book_reviews')
+      .update({ ...payload, is_pinned: Boolean(is_pinned) })
+      .eq('id', reviewId)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   // --------------------------------------------------------------------

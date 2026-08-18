@@ -77,6 +77,7 @@ app.get('/api/locations', async (req, res) => {
     const locations = await db.getLocations();
     res.json(locations);
   } catch (err) {
+    console.error('Erro ao buscar unidades no Supabase:', err.message);
     res.status(500).json({ error: 'Erro ao buscar unidades.' });
   }
 });
@@ -88,6 +89,7 @@ app.get('/api/books', async (req, res) => {
     const books = await db.getBooks({ search, location_id, category, author });
     res.json(books);
   } catch (err) {
+    console.error('Erro ao buscar livros no Supabase:', err.message);
     res.status(500).json({ error: 'Erro ao buscar livros.' });
   }
 });
@@ -109,6 +111,72 @@ app.get('/api/books/categories', async (req, res) => {
     res.json(categories);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar categorias.' });
+  }
+});
+
+// 4.6. REVIEWS: leitura pública
+app.get('/api/reviews', async (req, res) => {
+  try {
+    const reviews = await db.getReviews();
+    res.json(reviews);
+  } catch (err) {
+    console.error('Erro ao buscar reviews no Supabase:', err.message);
+    res.status(500).json({ error: 'Erro ao buscar reviews.' });
+  }
+});
+
+// 4.7. REVIEWS: validar duplicidade por nome (admin-only)
+app.get('/api/reviews/check-duplicate', authenticateToken, async (req, res) => {
+  try {
+    const { book_title, exclude_id } = req.query;
+    if (!book_title?.trim()) return res.json({ duplicate: false, review: null });
+
+    const review = await db.findReviewByBookTitle(book_title, exclude_id);
+    res.json({ duplicate: Boolean(review), review });
+  } catch (err) {
+    console.error('Erro ao verificar duplicidade da review:', err.message);
+    res.status(500).json({ error: 'Erro ao verificar duplicidade da review.' });
+  }
+});
+
+// 4.8. REVIEWS: publicar (admin-only)
+app.post('/api/reviews', authenticateToken, async (req, res) => {
+  try {
+    const { book_title, author, rating, opinion, is_pinned } = req.body;
+    const review = await db.createReview({
+      book_title,
+      author,
+      rating,
+      opinion,
+      is_pinned,
+      created_by: req.user?.id || null
+    });
+
+    res.status(201).json(review);
+  } catch (err) {
+    console.error('Erro ao publicar review:', err.message);
+    const status = err.message?.includes('Já existe') ? 409 : 400;
+    res.status(status).json({ error: err.message || 'Erro ao publicar review.' });
+  }
+});
+
+// 4.9. REVIEWS: editar (admin-only)
+app.put('/api/reviews/:id', authenticateToken, async (req, res) => {
+  try {
+    const { book_title, author, rating, opinion, is_pinned } = req.body;
+    const review = await db.updateReview(req.params.id, {
+      book_title,
+      author,
+      rating,
+      opinion,
+      is_pinned
+    });
+
+    res.json(review);
+  } catch (err) {
+    console.error('Erro ao atualizar review:', err.message);
+    const status = err.message?.includes('Já existe') ? 409 : 400;
+    res.status(status).json({ error: err.message || 'Erro ao atualizar review.' });
   }
 });
 

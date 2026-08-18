@@ -24,3 +24,7 @@ Thumbs.db
 dist/
 build/
 .cache/
+
+# Estado local do Supabase CLI
+supabase/.temp/
+supabase/.branches/

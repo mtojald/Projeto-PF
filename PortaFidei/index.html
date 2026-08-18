@@ -3,466 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Porta Fidei - Biblioteca</title>
-  <meta name="description" content="Biblioteca Porta Fidei — catálogo de livros e sistema de aluguel. Sabedoria e Fé.">
+  <title>Porta Fidei · Acervo</title>
+  <meta name="description" content="Catálogo da biblioteca Porta Fidei e painel administrativo de empréstimos.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <!-- SheetJS CDN para importação de XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-
-  <!-- Navigation Header -->
-  <header class="navbar">
-    <div class="brand-container" id="navBrand">
-      <div class="brand-logo">PF</div>
-      <div class="brand-title">
-        PORTA FIDEI
-        <span class="subtitle">BIBLIOTECA</span>
-      </div>
-    </div>
-
-    <div class="nav-controls">
-      <ul class="nav-links" id="navLinksContainer" style="display: none;">
-        <li>
-          <button class="nav-link-btn active" id="navCatalogBtn">
-            <i data-lucide="book-open"></i> Catálogo
-          </button>
-        </li>
-        <li>
-          <button class="nav-link-btn" id="navAdminBtn">
-            <i data-lucide="shield-check"></i> Painel Admin
-            <span class="badge-status badge-pending" id="adminActiveBadge" style="display: none;">0</span>
-          </button>
-        </li>
-      </ul>
-
-      <!-- Auth Slot -->
-      <div id="authNavSlot">
-        <button class="btn btn-primary btn-sm" id="navLoginBtn">
-          <i data-lucide="log-in"></i> Login Admin
-        </button>
-      </div>
-
-      <!-- Theme Toggle -->
-      <button class="theme-toggle-btn" id="themeToggleBtn" title="Alternar Tema Claro/Escuro">
-        <i data-lucide="sun"></i>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <button class="brand" id="navBrand" type="button" aria-label="Voltar ao catálogo">
+        <span class="brand-mark">PF</span>
+        <span class="brand-copy"><strong>Porta Fidei</strong><small>Biblioteca</small></span>
       </button>
-    </div>
-  </header>
 
-  <!-- Hero Banner -->
-  <section class="hero-banner">
-    <div class="hero-content">
-      <span class="hero-tag"><i data-lucide="compass"></i> Sabedoria & Fé</span>
-      <h1 class="hero-title">Biblioteca Porta Fidei</h1>
-      <p class="hero-subtitle">Gerencie o acervo de livros, registre aluguéis e acompanhe devoluções.</p>
+      <div class="sidebar-section-label">Navegação</div>
+      <nav class="sidebar-nav" id="navLinksContainer">
+        <button class="nav-item active" id="navCatalogBtn" type="button"><i data-lucide="library"></i><span>Catálogo</span></button>
+        <button class="nav-item" id="navAdminBtn" type="button"><i data-lucide="layout-dashboard"></i><span>Painel admin</span><span class="nav-count" id="adminActiveBadge" style="display:none;">0</span></button>
+        <button class="nav-item" id="navReviewsBtn" type="button"><i data-lucide="heart-handshake"></i><span>Reviews Alma Pequenina</span></button>
+      </nav>
 
-      <!-- Quick Search Container -->
-      <div class="search-bar-container" id="searchBarContainer" style="display: none;">
-        <div class="search-input-wrapper">
-          <i data-lucide="search"></i>
-          <input type="text" id="globalSearchInput" class="search-input" placeholder="Pesquisar por título ou autor...">
-        </div>
-        <select id="globalLocationSelect" class="search-select">
-          <option value="ALL">📍 Todas as Unidades</option>
-        </select>
-        <button class="btn btn-primary" id="searchSubmitBtn">
-          Pesquisar
-        </button>
-      </div>
-    </div>
-  </section>
+      <div class="sidebar-note"><span class="note-icon"><i data-lucide="sparkles"></i></span><strong>Uma biblioteca feita para a calma.</strong><p>Consulte o acervo e encontre o próximo livro para levar.</p></div>
+      <div class="sidebar-footer"><span class="status-dot"></span><span>Sistema conectado</span></div>
+    </aside>
 
-  <!-- Main View Container -->
-  <main class="main-container">
+    <div class="main-shell">
+      <header class="topbar">
+        <div class="breadcrumb"><span>Porta Fidei</span><i data-lucide="chevron-right"></i><strong id="currentAreaLabel">Acervo</strong></div>
+        <div class="topbar-actions"><button class="icon-btn" id="themeToggleBtn" type="button" title="Alternar tema" aria-label="Alternar tema"><i data-lucide="sun"></i></button><div id="authNavSlot"><button class="btn btn-dark btn-sm" id="navLoginBtn" type="button"><i data-lucide="lock-keyhole"></i> Acesso admin</button></div></div>
+      </header>
 
-    <!-- VIEW 1: LOGIN -->
-    <section id="viewLogin" class="view-section active">
-      <div class="auth-wrapper">
-        <div class="auth-header-block">
-          <div class="auth-icon-circle">
-            <i data-lucide="shield-check"></i>
+      <main class="page-content">
+        <section id="viewLogin" class="view-section">
+          <div class="login-layout"><div class="login-intro"><span class="eyebrow"><i data-lucide="shield-check"></i> Área restrita</span><h1>Cuide do acervo<br><em>com leveza.</em></h1><p>Entre para registrar empréstimos, acompanhar devoluções e manter os livros disponíveis para a comunidade.</p><div class="login-detail"><span>01</span><i data-lucide="minus"></i><span>acesso seguro para administradores</span></div></div>
+            <div class="auth-card"><div class="auth-card-top"><span class="mini-mark">PF</span><span>Porta Fidei / Admin</span></div><h2>Entrar no painel</h2><p class="auth-subtitle">Use seu e-mail ou nome de usuário.</p><form id="loginForm"><div class="form-group"><label class="form-label" for="loginEmail">E-mail ou usuário</label><div class="input-with-icon"><i data-lucide="user-round"></i><input type="text" id="loginEmail" name="loginEmail" class="form-control" placeholder="seu.usuario" autocomplete="username" required></div></div><div class="form-group"><label class="form-label" for="loginPassword">Senha</label><div class="input-with-icon"><i data-lucide="key-round"></i><input type="password" id="loginPassword" name="loginPassword" class="form-control" placeholder="••••••••" autocomplete="current-password" required></div></div><button class="btn btn-dark btn-full btn-lg" type="submit">Acessar painel <i data-lucide="arrow-up-right"></i></button></form><div class="auth-footer"><i data-lucide="lock"></i> Seus dados ficam protegidos pelo Supabase.</div></div>
           </div>
-          <h2 class="font-serif" style="text-align: center; margin-bottom: 0.3rem; color: var(--primary-gold);">Acesso Administrativo</h2>
-          <p style="text-align: center; color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">Faça login com a conta de administração para gerenciar o catálogo.</p>
-        </div>
-        <form id="loginForm">
-          <div class="form-group">
-            <label class="form-label" for="loginEmail">E-mail ou Usuário</label>
-            <input type="text" id="loginEmail" class="form-control" placeholder="admin@portafidei.com ou seu_usuario" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="loginPassword">Senha</label>
-            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
-          </div>
-          <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
-            <i data-lucide="log-in"></i> Acessar Painel
-          </button>
-        </form>
-      </div>
-    </section>
+        </section>
 
-    <!-- VIEW 2: CATALOG -->
-    <section id="viewCatalog" class="view-section">
-      <div class="section-header">
-        <h2 class="section-title"><i data-lucide="library"></i> Acervo de Livros</h2>
-        <div class="catalog-filters" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
-          <select id="authorFilterSelect" class="search-select">
-            <option value="ALL">✍️ Todos os Autores</option>
-          </select>
-          <select id="categoryFilterSelect" class="search-select">
-            <option value="ALL">Todas as Categorias</option>
-            <option value="Teologia">Teologia</option>
-            <option value="Filosofia">Filosofia</option>
-            <option value="Espiritualidade">Espiritualidade</option>
-            <option value="História">História</option>
-          </select>
-        </div>
-      </div>
+        <section id="viewCatalog" class="view-section active">
+          <div class="catalog-heading"><div><span class="eyebrow"><i data-lucide="book-open"></i> Acervo aberto</span><h1>Escolha uma boa<br><em>leitura.</em></h1><p>Explore os livros disponíveis na Porta Fidei.</p></div><div class="heading-stamp"><span class="stamp-line"></span><span>sabedoria<br>&amp; fé</span></div></div>
+          <div class="search-panel" id="searchBarContainer"><div class="search-main input-with-icon"><i data-lucide="search"></i><input type="search" id="globalSearchInput" class="form-control" placeholder="Busque por título ou autor..." autocomplete="off"></div><div class="filter-field"><label for="globalLocationSelect">Local</label><select id="globalLocationSelect" class="select-control"><option value="ALL">Todas as unidades</option></select></div><div class="filter-field"><label for="categoryFilterSelect">Categoria</label><select id="categoryFilterSelect" class="select-control"><option value="ALL">Todas</option></select></div><div class="filter-field filter-author"><label for="authorFilterSelect">Autor</label><select id="authorFilterSelect" class="select-control"><option value="ALL">Todos</option></select></div><button class="btn btn-dark search-btn" id="searchSubmitBtn" type="button" aria-label="Pesquisar"><i data-lucide="arrow-right"></i></button></div>
+          <div class="catalog-meta"><span><strong>Acervo</strong> / todos os livros</span><span class="catalog-rule"></span><span>Consulte a disponibilidade antes de solicitar</span></div><div id="bookGridContainer" class="book-grid"></div>
+        </section>
 
-      <!-- Book Grid Container -->
-      <div id="bookGridContainer" class="book-grid">
-        <!-- Rendered by JS -->
-      </div>
-    </section>
+        <section id="viewReviews" class="view-section">
+          <div class="reviews-heading"><div><span class="eyebrow"><i data-lucide="heart-handshake"></i> Leituras recomendadas</span><h1>Reviews Alma<br><em>Pequenina.</em></h1><p>Uma coleção de impressões sinceras sobre livros que já passaram por boas mãos.</p></div><button class="btn btn-dark" id="openNewReviewBtn" type="button" style="display:none;"><i data-lucide="plus"></i> Nova review</button></div>
+          <div class="reviews-note"><span class="note-icon"><i data-lucide="quote"></i></span><div><strong>Pequenas leituras, grandes encontros.</strong><p>Notas e opiniões para ajudar você a escolher o próximo livro.</p></div><span class="review-count-label">curadoria Porta Fidei</span></div>
+          <div id="reviewsGridContainer" class="reviews-grid"></div>
+        </section>
 
-    <!-- VIEW 3: ADMIN DASHBOARD -->
-    <section id="viewAdminDashboard" class="view-section">
-      <div class="section-header">
-        <h2 class="section-title"><i data-lucide="shield-check"></i> Painel de Administração</h2>
-        <span class="badge-status badge-approved">Modo Administrador Ativo</span>
-      </div>
-
-      <!-- Stats Grid -->
-      <div class="admin-stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon"><i data-lucide="layers"></i></div>
-          <div>
-            <div class="stat-value" id="statTotalBooks">0</div>
-            <div class="stat-label">Livros Cadastrados</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon"><i data-lucide="archive"></i></div>
-          <div>
-            <div class="stat-value" id="statTotalCopies">0</div>
-            <div class="stat-label">Total de Exemplares</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon"><i data-lucide="book-open"></i></div>
-          <div>
-            <div class="stat-value" id="statActiveRentals">0</div>
-            <div class="stat-label">Aluguéis Ativos</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon"><i data-lucide="alert-triangle"></i></div>
-          <div>
-            <div class="stat-value" id="statUnavailableBooks">0</div>
-            <div class="stat-label">Livros Esgotados</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Admin Tabs Navigation -->
-      <div class="admin-tabs">
-        <button class="admin-tab-btn active" id="adminTabRentals">
-          <i data-lucide="file-check"></i> Aluguéis
-        </button>
-        <button class="admin-tab-btn" id="adminTabBooks">
-          <i data-lucide="book-plus"></i> Gerenciar Acervo
-        </button>
-      </div>
-
-      <!-- TAB 1: RENTALS MANAGEMENT -->
-      <div id="adminTabRentalsContent" class="admin-tab-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-            <select id="rentalStatusFilter" class="search-select">
-              <option value="ALL">Todos os Status</option>
-              <option value="active" selected>Ativos</option>
-              <option value="returned">Devolvidos</option>
-              <option value="overdue">Atrasados</option>
-            </select>
-          </div>
-          <button class="btn btn-primary btn-sm" id="openNewRentalBtn">
-            <i data-lucide="plus-circle"></i> Registrar Novo Aluguel
-          </button>
-        </div>
-
-        <div class="table-responsive">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Livro</th>
-                <th>Locatário</th>
-                <th>Contato</th>
-                <th>Data Retirada</th>
-                <th>Duração</th>
-                <th>Devolução Prevista</th>
-                <th>Unidade</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="adminRentalsTableBody">
-              <!-- Rendered by JS -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TAB 2: MANAGE BOOKS -->
-      <div id="adminTabBooksContent" class="admin-tab-content" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; background: var(--bg-surface); padding: 0.85rem 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-          <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">
-            <i data-lucide="info" style="width: 18px; height: 18px; color: var(--primary-gold);"></i>
-            <span>Formato do arquivo XLSX: <strong>titulo | autor | categoria | unidade | exemplares | capa (opcional)</strong></span>
-          </div>
-          <div>
-            <input type="file" id="xlsxFileInput" accept=".xlsx, .xls, .csv" style="display: none;">
-            <button class="btn btn-secondary btn-sm" id="importXlsxBtn">
-              <i data-lucide="file-up"></i> Importar Acervo (XLSX)
-            </button>
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem;">
-          <!-- Add Book Form -->
-          <div style="background: var(--bg-surface); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-            <h3 class="font-serif" style="margin-bottom: 1rem; color: var(--primary-gold);">Adicionar Novo Livro</h3>
-            <!-- Duplicate warning slot -->
-            <div id="duplicateWarning" class="duplicate-warning" style="display: none;"></div>
-            <form id="addBookForm">
-              <div class="form-group">
-                <label class="form-label">Título do Livro</label>
-                <input type="text" id="newBookTitle" class="form-control" placeholder="Ex: O Castelo Interior" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Autor</label>
-                <input type="text" id="newBookAuthor" class="form-control" placeholder="Ex: Santa Teresa de Ávila" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Categoria</label>
-                <select id="newBookCategory" class="form-control">
-                  <option value="Espiritualidade">Espiritualidade</option>
-                  <option value="Teologia">Teologia</option>
-                  <option value="Filosofia">Filosofia</option>
-                  <option value="História">História</option>
-                  <option value="new_custom">➕ Criar Nova Categoria...</option>
-                </select>
-                <div id="newCategoryCustomWrapper" style="margin-top: 0.5rem; display: none;">
-                  <input type="text" id="newBookCategoryCustom" class="form-control" placeholder="Digite o nome da nova categoria (ex: Patrística)">
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Unidade de Localização</label>
-                <select id="newBookLocation" class="form-control">
-                  <!-- Populated by JS -->
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Quantidade de Exemplares</label>
-                <input type="number" id="newBookCopies" class="form-control" min="1" value="3" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Foto de Capa</label>
-                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                  <input type="file" id="newBookCoverFile" accept="image/*" style="display: none;">
-                  <button type="button" class="btn btn-secondary btn-sm" id="newBookCoverBtn">
-                    <i data-lucide="image-plus"></i> Selecionar Foto
-                  </button>
-                  <span id="newBookCoverFileName" style="font-size: 0.8rem; color: var(--text-muted);">Capa padrão</span>
-                </div>
-                <div id="newBookCoverPreviewWrap" style="margin-top: 0.5rem; display: none;">
-                  <img id="newBookCoverPreview" src="" alt="Prévia da Capa" style="max-height: 90px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-full">
-                <i data-lucide="plus-circle"></i> Cadastrar Livro
-              </button>
-            </form>
-          </div>
-
-          <!-- Existing Books List -->
-          <div class="table-responsive">
-            <table class="custom-table">
-              <thead>
-                <tr>
-                  <th>Título</th>
-                  <th>Autor</th>
-                  <th>Categoria</th>
-                  <th>Unidade</th>
-                  <th>Exemplares</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody id="adminBooksTableBody">
-                <!-- Rendered by JS -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-    </section>
-  </main>
-
-  <!-- MODAL: REGISTRAR ALUGUEL (ADMIN) -->
-  <div class="modal-overlay" id="rentalModal">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 class="modal-title font-serif"><i data-lucide="calendar-plus"></i> Registrar Novo Aluguel</h3>
-        <button class="modal-close-btn" id="closeRentalModalBtn">&times;</button>
-      </div>
-      <form id="rentalForm">
-        <div class="form-group">
-          <label class="form-label" for="rentalBookSelect">Livro</label>
-          <select id="rentalBookSelect" class="form-control" required>
-            <option value="">Selecione um livro...</option>
-          </select>
-          <small id="rentalBookStock" class="form-hint" style="display: none;"></small>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rentalRenterName">Nome do Locatário</label>
-          <input type="text" id="rentalRenterName" class="form-control" placeholder="Ex: João Silva" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rentalRenterContact">Contato (telefone ou e-mail)</label>
-          <input type="text" id="rentalRenterContact" class="form-control" placeholder="Ex: (11) 99999-9999">
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rentalStartDate">Data de Retirada</label>
-          <input type="date" id="rentalStartDate" class="form-control" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rentalDurationDays">Tempo de Empréstimo</label>
-          <select id="rentalDurationDays" class="form-control">
-            <option value="7">7 Dias (1 Semana)</option>
-            <option value="14" selected>14 Dias (2 Semanas)</option>
-            <option value="21">21 Dias (3 Semanas)</option>
-            <option value="30">30 Dias (1 Mês)</option>
-            <option value="custom">✏️ Personalizado (1 a 365 dias)...</option>
-          </select>
-          <div id="customDurationWrapper" style="margin-top: 0.5rem; display: none;">
-            <input type="number" id="rentalCustomDays" class="form-control" min="1" max="365" value="14" placeholder="Digite a quantidade de dias (1 a 365)">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="rentalLocationSelect">Unidade de Retirada</label>
-          <select id="rentalLocationSelect" class="form-control">
-            <!-- Populated by JS -->
-          </select>
-        </div>
-
-        <div style="background: rgba(212, 175, 55, 0.08); padding: 0.85rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; font-size: 0.85rem;">
-          📅 <strong>Data de Devolução Prevista:</strong> <span id="calculatedReturnDate" style="color: var(--primary-gold); font-weight: 700;">-</span>
-        </div>
-
-        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-          <button type="button" class="btn btn-secondary" id="cancelRentalModalBtn">Cancelar</button>
-          <button type="submit" class="btn btn-primary">
-            <i data-lucide="check-circle"></i> Registrar Aluguel
-          </button>
-        </div>
-      </form>
+        <section id="viewAdminDashboard" class="view-section">
+          <div class="admin-heading"><div><span class="eyebrow"><i data-lucide="orbit"></i> Visão geral</span><h1>O acervo em <em>movimento.</em></h1><p>Registre saídas, acompanhe prazos e mantenha cada livro no lugar certo.</p></div><div class="admin-status"><span class="status-dot"></span><span>Modo administrador ativo</span></div></div>
+          <div class="stats-grid"><article class="stat-card stat-card-primary"><span class="stat-icon"><i data-lucide="library"></i></span><div><span class="stat-value" id="statTotalBooks">0</span><span class="stat-label">títulos no acervo</span></div><span class="stat-mark">01</span></article><article class="stat-card"><span class="stat-icon"><i data-lucide="layers-3"></i></span><div><span class="stat-value" id="statTotalCopies">0</span><span class="stat-label">exemplares catalogados</span></div><span class="stat-mark">02</span></article><article class="stat-card"><span class="stat-icon"><i data-lucide="book-marked"></i></span><div><span class="stat-value" id="statActiveRentals">0</span><span class="stat-label">aluguéis ativos</span></div><span class="stat-mark">03</span></article><article class="stat-card stat-card-warning"><span class="stat-icon"><i data-lucide="triangle-alert"></i></span><div><span class="stat-value" id="statUnavailableBooks">0</span><span class="stat-label">títulos sem cópias</span></div><span class="stat-mark">04</span></article></div>
+          <div class="admin-tabs" role="tablist"><button class="admin-tab-btn active" id="adminTabRentals" type="button"><i data-lucide="arrow-up-left"></i> Empréstimos</button><button class="admin-tab-btn" id="adminTabBooks" type="button"><i data-lucide="library"></i> Gerenciar acervo</button></div>
+          <div id="adminTabRentalsContent" class="admin-tab-content"><div class="content-toolbar"><div><h2>Empréstimos</h2><p>O ID do livro permanece fixo até a devolução.</p></div><div class="toolbar-actions"><select id="rentalStatusFilter" class="select-control compact"><option value="ALL">Todos os status</option><option value="active" selected>Ativos</option><option value="returned">Devolvidos</option><option value="overdue">Atrasados</option></select><button class="btn btn-dark" id="openNewRentalBtn" type="button"><i data-lucide="plus"></i> Registrar empréstimo</button></div></div><div class="table-card"><div class="table-responsive"><table class="data-table"><thead><tr><th>Livro / ID fixo</th><th>Locatário</th><th>Retirada</th><th>Devolução</th><th>Unidade</th><th>Status</th><th></th></tr></thead><tbody id="adminRentalsTableBody"></tbody></table></div></div></div>
+          <div id="adminTabBooksContent" class="admin-tab-content" style="display:none;"><div class="content-toolbar"><div><h2>Gerenciar acervo</h2><p>Cadastre, edite e organize os livros disponíveis.</p></div><div class="toolbar-actions"><input type="file" id="xlsxFileInput" accept=".xlsx,.xls,.csv" hidden><button class="btn btn-light" id="importXlsxBtn" type="button"><i data-lucide="file-up"></i> Importar planilha</button></div></div><div class="books-management-grid"><div class="form-card"><div class="form-card-heading"><span class="mini-mark">+</span><div><h3>Novo livro</h3><p>Adicione um título ao acervo.</p></div></div><div id="duplicateWarning" class="duplicate-warning" style="display:none;"></div><form id="addBookForm"><div class="form-group"><label class="form-label" for="newBookTitle">Título</label><input type="text" id="newBookTitle" class="form-control" placeholder="Nome do livro" required></div><div class="form-group"><label class="form-label" for="newBookAuthor">Autor</label><input type="text" id="newBookAuthor" class="form-control" placeholder="Nome do autor" required></div><div class="form-row"><div class="form-group"><label class="form-label" for="newBookCategory">Categoria</label><select id="newBookCategory" class="select-control"></select><div id="newCategoryCustomWrapper" style="display:none;"><input type="text" id="newBookCategoryCustom" class="form-control" placeholder="Nova categoria"></div></div><div class="form-group"><label class="form-label" for="newBookCopies">Exemplares</label><input type="number" id="newBookCopies" class="form-control" min="1" value="1" required></div></div><div class="form-group"><label class="form-label" for="newBookLocation">Unidade</label><select id="newBookLocation" class="select-control"></select></div><div class="form-group"><label class="form-label">Capa</label><input type="file" id="newBookCoverFile" accept="image/*" hidden><div class="file-picker"><button class="btn btn-light btn-sm" id="newBookCoverBtn" type="button"><i data-lucide="image-plus"></i> Escolher imagem</button><span id="newBookCoverFileName">Capa padrão</span></div><div id="newBookCoverPreviewWrap" style="display:none;"><img id="newBookCoverPreview" class="cover-preview" src="" alt="Prévia da capa"></div></div><button class="btn btn-dark btn-full" type="submit">Cadastrar livro <i data-lucide="plus"></i></button></form></div><div class="table-card management-table"><div class="table-responsive"><table class="data-table"><thead><tr><th>Título</th><th>Autor</th><th>Categoria</th><th>Disponibilidade</th><th></th></tr></thead><tbody id="adminBooksTableBody"></tbody></table></div></div></div></div>
+        </section>
+      </main>
+      <footer class="page-footer"><span>Porta Fidei</span><span>Catálogo &amp; cuidado do acervo</span><span>© 2026</span></footer>
     </div>
   </div>
 
-  <!-- MODAL: EDITAR LIVRO (ADMIN) -->
-  <div class="modal-overlay" id="editBookModal">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 class="modal-title font-serif"><i data-lucide="edit-3"></i> Editar Informações do Livro</h3>
-        <button class="modal-close-btn" id="closeEditBookModalBtn">&times;</button>
-      </div>
-      <form id="editBookForm">
-        <input type="hidden" id="editBookId">
+  <div class="modal-overlay" id="rentalModal" role="dialog" aria-modal="true" aria-labelledby="rentalModalTitle"><div class="modal-box modal-box-wide"><div class="modal-header"><div><span class="eyebrow">Operação / 01</span><h3 class="modal-title" id="rentalModalTitle">Registrar empréstimo</h3><p>O ID informado será mantido como referência até a devolução.</p></div><button class="modal-close-btn" id="closeRentalModalBtn" type="button" aria-label="Fechar">×</button></div><form id="rentalForm"><div class="id-lock-card"><span class="id-lock-icon"><i data-lucide="fingerprint"></i></span><div><strong>ID fixo do livro</strong><span>Informe o identificador exato do exemplar/título alugado.</span></div><i class="id-lock-check" data-lucide="lock-keyhole"></i></div><div class="form-group"><label class="form-label" for="rentalBookId">ID do livro <span class="required">*</span></label><div class="input-with-icon input-mono"><i data-lucide="scan-barcode"></i><input type="text" id="rentalBookId" class="form-control" placeholder="Cole o UUID do livro" autocomplete="off" required></div><small class="form-hint">Esse ID ficará vinculado ao empréstimo até o registro da devolução.</small></div><div class="form-group"><label class="form-label" for="rentalBookSelect">Livro identificado</label><select id="rentalBookSelect" class="select-control" required><option value="">Selecione ou informe o ID acima...</option></select><small id="rentalBookStock" class="form-hint" style="display:none;"></small></div><div class="form-row"><div class="form-group"><label class="form-label" for="rentalRenterName">Nome do locatário <span class="required">*</span></label><input type="text" id="rentalRenterName" class="form-control" placeholder="Nome completo" required></div><div class="form-group"><label class="form-label" for="rentalRenterContact">Contato</label><input type="text" id="rentalRenterContact" class="form-control" placeholder="Telefone ou e-mail"></div></div><div class="form-row"><div class="form-group"><label class="form-label" for="rentalStartDate">Data de retirada</label><input type="date" id="rentalStartDate" class="form-control" required></div><div class="form-group"><label class="form-label" for="rentalDurationDays">Prazo</label><select id="rentalDurationDays" class="select-control"><option value="7">7 dias</option><option value="14" selected>14 dias</option><option value="21">21 dias</option><option value="30">30 dias</option><option value="custom">Personalizado</option></select><div id="customDurationWrapper" style="display:none;"><input type="number" id="rentalCustomDays" class="form-control" min="1" max="365" value="14" placeholder="Quantidade de dias"></div></div></div><div class="form-row"><div class="form-group"><label class="form-label" for="rentalLocationSelect">Unidade de retirada</label><select id="rentalLocationSelect" class="select-control"></select></div><div class="return-preview"><span>Devolução prevista</span><strong id="calculatedReturnDate">—</strong></div></div><div class="modal-actions"><button class="btn btn-light" id="cancelRentalModalBtn" type="button">Cancelar</button><button class="btn btn-dark" type="submit"><i data-lucide="check"></i> Confirmar empréstimo</button></div></form></div></div>
 
-        <div class="form-group">
-          <label class="form-label" for="editBookTitle">Título do Livro</label>
-          <input type="text" id="editBookTitle" class="form-control" required>
-        </div>
+  <div class="modal-overlay" id="editBookModal" role="dialog" aria-modal="true" aria-labelledby="editBookModalTitle"><div class="modal-box modal-box-wide"><div class="modal-header"><div><span class="eyebrow">Acervo / edição</span><h3 class="modal-title" id="editBookModalTitle">Editar livro</h3></div><button class="modal-close-btn" id="closeEditBookModalBtn" type="button" aria-label="Fechar">×</button></div><form id="editBookForm"><input type="hidden" id="editBookId"><div class="form-row"><div class="form-group"><label class="form-label" for="editBookTitle">Título</label><input type="text" id="editBookTitle" class="form-control" required></div><div class="form-group"><label class="form-label" for="editBookAuthor">Autor</label><input type="text" id="editBookAuthor" class="form-control" required></div></div><div class="form-row"><div class="form-group"><label class="form-label" for="editBookCategory">Categoria</label><select id="editBookCategory" class="select-control"></select><div id="editCategoryCustomWrapper" style="display:none;"><input type="text" id="editBookCategoryCustom" class="form-control" placeholder="Nova categoria"></div></div><div class="form-group"><label class="form-label" for="editBookLocation">Unidade</label><select id="editBookLocation" class="select-control"></select></div></div><div class="form-row"><div class="form-group"><label class="form-label" for="editBookCopiesTotal">Exemplares totais</label><input type="number" id="editBookCopiesTotal" class="form-control" min="1" required></div><div class="form-group"><label class="form-label" for="editBookCopiesAvailable">Disponíveis</label><input type="number" id="editBookCopiesAvailable" class="form-control" min="0" required></div></div><div class="form-group"><label class="form-label">Capa</label><input type="file" id="editBookCoverFile" accept="image/*" hidden><div class="file-picker"><button class="btn btn-light btn-sm" id="editBookCoverBtn" type="button"><i data-lucide="image-plus"></i> Trocar imagem</button><span id="editBookCoverFileName">Manter capa atual</span></div><img id="editBookCoverPreview" class="cover-preview" src="" alt="Prévia da capa"></div><div class="modal-actions"><button class="btn btn-light" id="cancelEditBookModalBtn" type="button">Cancelar</button><button class="btn btn-dark" type="submit"><i data-lucide="save"></i> Salvar alterações</button></div></form></div></div>
 
-        <div class="form-group">
-          <label class="form-label" for="editBookAuthor">Autor</label>
-          <input type="text" id="editBookAuthor" class="form-control" required>
-        </div>
+  <div class="modal-overlay" id="reviewModal" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle"><div class="modal-box modal-box-wide"><div class="modal-header"><div><span class="eyebrow">Reviews Alma Pequenina / edição</span><h3 class="modal-title" id="reviewModalTitle">Publicar review</h3><p>Compartilhe uma leitura que merece ser lembrada.</p></div><button class="modal-close-btn" id="closeReviewModalBtn" type="button" aria-label="Fechar">×</button></div><form id="reviewForm"><input type="hidden" id="reviewId"><div class="form-row"><div class="form-group"><label class="form-label" for="reviewBookTitle">Nome do livro <span class="required">*</span></label><input type="text" id="reviewBookTitle" class="form-control" placeholder="Título do livro" required></div><div class="form-group"><label class="form-label" for="reviewBookAuthor">Autor <span class="required">*</span></label><input type="text" id="reviewBookAuthor" class="form-control" placeholder="Nome do autor" required></div></div><div id="reviewDuplicateWarning" class="duplicate-warning" style="display:none;"></div><div class="form-row"><div class="form-group"><label class="form-label" for="reviewRating">Nota <span class="required">*</span></label><div class="rating-input"><input type="number" id="reviewRating" class="form-control" min="0" max="10" step="0.5" placeholder="0 a 10" required><span>/ 10</span></div><small class="form-hint">Use uma nota entre 0 e 10.</small></div><label class="pin-option" for="reviewPinned"><input type="checkbox" id="reviewPinned"><span class="pin-option-icon"><i data-lucide="pin"></i></span><span><strong>Fixar como primeira</strong><small>Esta review aparece no topo da página.</small></span></label></div><div class="form-group"><label class="form-label" for="reviewOpinion">Opinião <span class="required">*</span></label><textarea id="reviewOpinion" class="form-control" rows="5" placeholder="O que você achou desta leitura?" required></textarea></div><div class="modal-actions"><button class="btn btn-light" id="cancelReviewModalBtn" type="button">Cancelar</button><button class="btn btn-dark" id="reviewSubmitBtn" type="submit"><i data-lucide="send"></i> Publicar review</button></div></form></div></div>
 
-        <div class="form-group">
-          <label class="form-label" for="editBookCategory">Categoria</label>
-          <select id="editBookCategory" class="form-control">
-            <option value="Espiritualidade">Espiritualidade</option>
-            <option value="Teologia">Teologia</option>
-            <option value="Filosofia">Filosofia</option>
-            <option value="História">História</option>
-            <option value="new_custom">➕ Criar Nova Categoria...</option>
-          </select>
-          <div id="editCategoryCustomWrapper" style="margin-top: 0.5rem; display: none;">
-            <input type="text" id="editBookCategoryCustom" class="form-control" placeholder="Digite a nova categoria">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="editBookLocation">Unidade de Localização</label>
-          <select id="editBookLocation" class="form-control">
-            <!-- Options via JS -->
-          </select>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-          <div class="form-group">
-            <label class="form-label" for="editBookCopiesTotal">Total de Exemplares</label>
-            <input type="number" id="editBookCopiesTotal" class="form-control" min="1" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="editBookCopiesAvailable">Exemplares Disponíveis</label>
-            <input type="number" id="editBookCopiesAvailable" class="form-control" min="0" required>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Foto de Capa</label>
-          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <input type="file" id="editBookCoverFile" accept="image/*" style="display: none;">
-            <button type="button" class="btn btn-secondary btn-sm" id="editBookCoverBtn">
-              <i data-lucide="image-plus"></i> Alterar Foto
-            </button>
-            <span id="editBookCoverFileName" style="font-size: 0.8rem; color: var(--text-muted);">Manter capa atual</span>
-          </div>
-          <div id="editBookCoverPreviewWrap" style="margin-top: 0.5rem;">
-            <img id="editBookCoverPreview" src="" alt="Prévia da Capa" style="max-height: 90px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-          </div>
-        </div>
-
-        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem;">
-          <button type="button" class="btn btn-secondary" id="cancelEditBookModalBtn">Cancelar</button>
-          <button type="submit" class="btn btn-primary">
-            <i data-lucide="save"></i> Salvar Alterações
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Toast Notification Container -->
-  <div class="toast-container" id="toastContainer"></div>
-
-  <!-- Footer -->
-  <footer class="footer">
-    <p>© 2026 <span class="footer-gold">Biblioteca Porta Fidei</span>. Todos os direitos reservados.</p>
-    <p style="font-size: 0.78rem; margin-top: 0.4rem;">Biblioteca Porta Fidei | Sabedoria & Fé</p>
-  </footer>
-
-  <!-- Main JavaScript File -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
   <script src="app.js"></script>
 </body>
 </html>
