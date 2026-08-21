@@ -126,9 +126,13 @@ h1 em, h2 em { color: var(--green-2); font-family: 'DM Serif Display', Georgia, 
 .review-opinion::before { content: '“'; position: absolute; left: 0; top: -4px; color: var(--gold); font-family: Georgia, serif; font-size: 25px; }
 .review-card-footer { border-top: 1px solid var(--line); padding-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .review-date { color: #9aa69f; font-size: 9px; }
+.review-actions { display: inline-flex; align-items: center; gap: 9px; }
 .review-edit-btn { display: inline-flex; align-items: center; gap: 5px; color: var(--green-2); background: transparent; border: 0; padding: 3px; font-size: 9px; font-weight: 800; }
 .review-edit-btn:hover { color: var(--gold); }
 .review-edit-btn svg { width: 13px; height: 13px; }
+.review-delete-btn { display: inline-flex; align-items: center; gap: 5px; color: var(--status-rejected-text); background: transparent; border: 0; padding: 3px; font-size: 9px; font-weight: 800; }
+.review-delete-btn:hover { color: #a13f3f; }
+.review-delete-btn svg { width: 13px; height: 13px; }
 .rating-input { display: flex; align-items: center; gap: 8px; }
 .rating-input .form-control { max-width: 150px; }
 .rating-input > span { color: var(--muted); font-size: 12px; font-weight: 800; }

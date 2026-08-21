@@ -180,6 +180,17 @@ app.put('/api/reviews/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// 4.10. REVIEWS: excluir (admin-only)
+app.delete('/api/reviews/:id', authenticateToken, async (req, res) => {
+  try {
+    await db.deleteReview(req.params.id);
+    res.json({ success: true, message: 'Review excluída com sucesso.' });
+  } catch (err) {
+    console.error('Erro ao excluir review:', err.message);
+    res.status(500).json({ error: 'Erro ao excluir review.' });
+  }
+});
+
 // 5. BOOKS: Check duplicate title
 app.get('/api/books/check-duplicate', authenticateToken, async (req, res) => {
   try {
