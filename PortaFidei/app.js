@@ -637,7 +637,7 @@
       if (rentals.length === 0) {
         adminRentalsTableBody.innerHTML = `
           <tr>
-            <td colspan="7" class="empty-state">
+            <td colspan="8" class="empty-state">
               <i data-lucide="inbox" style="width: 36px; height: 36px;"></i>
               <p>Nenhum aluguel encontrado com este filtro.</p>
             </td>
@@ -664,7 +664,8 @@
           const displayCopyId = r.copy_id || r.book_id || '-';
           return `
             <tr>
-              <td><div class="rental-book-cell"><strong>${r.book_title || ''}</strong><span class="mono-id" title="${displayCopyId}">${displayCopyId}</span></div></td>
+              <td><strong>${r.book_title || ''}</strong></td>
+              <td><span class="mono-id" title="${displayCopyId}">${displayCopyId}</span></td>
               <td><div class="rental-book-cell"><strong>${r.renter_name}</strong><small>${r.renter_contact || '-'}</small></div></td>
               <td>${formatDateBR(r.start_date)}<small class="table-subline">${r.duration_days} dias</small></td>
               <td>${formatDateBR(r.return_date)}</td>
