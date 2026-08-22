@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.books (
 CREATE TABLE IF NOT EXISTS public.rentals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   book_id UUID REFERENCES public.books(id) ON DELETE CASCADE,
+  copy_id TEXT,
   renter_name TEXT NOT NULL,
   renter_contact TEXT DEFAULT '',
   start_date DATE NOT NULL,
@@ -36,6 +37,10 @@ CREATE TABLE IF NOT EXISTS public.rentals (
   status TEXT NOT NULL DEFAULT 'active', -- 'active', 'returned', 'overdue'
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS rentals_active_copy_id_unique
+  ON public.rentals (lower(btrim(copy_id)))
+  WHERE status IN ('active', 'overdue') AND copy_id IS NOT NULL AND btrim(copy_id) <> '';
 
 -- Migrações/Alterações caso a tabela 'rentals' já exista com schema antigo:
 ALTER TABLE public.rentals ADD COLUMN IF NOT EXISTS renter_name TEXT;

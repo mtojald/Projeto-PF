@@ -661,9 +661,10 @@
                </button>`
             : `<span style="color: var(--text-muted); font-size: 0.8rem;">${formatDateBR(r.actual_return_date)}</span>`;
 
+          const displayCopyId = r.copy_id || r.book_id || '-';
           return `
             <tr>
-              <td><div class="rental-book-cell"><strong>${r.book_title || ''}</strong><span class="mono-id" title="${r.book_id}">${r.book_id || '-'}</span></div></td>
+              <td><div class="rental-book-cell"><strong>${r.book_title || ''}</strong><span class="mono-id" title="${displayCopyId}">${displayCopyId}</span></div></td>
               <td><div class="rental-book-cell"><strong>${r.renter_name}</strong><small>${r.renter_contact || '-'}</small></div></td>
               <td>${formatDateBR(r.start_date)}<small class="table-subline">${r.duration_days} dias</small></td>
               <td>${formatDateBR(r.return_date)}</td>
@@ -752,13 +753,13 @@
 
       rentalRenterName.value = '';
       rentalRenterContact.value = '';
-      rentalBookId.value = preselectedBookId || '';
+      rentalBookId.value = '';
       rentalDurationDays.value = '14';
       if (rentalCustomDays) rentalCustomDays.value = '14';
       if (customDurationWrapper) customDurationWrapper.style.display = 'none';
 
       updateModalReturnDate();
-      syncRentalBookFromId();
+      updateBookStockHint();
 
       rentalModal.classList.add('open');
       if (window.lucide) window.lucide.createIcons();
@@ -770,35 +771,11 @@
   function updateBookStockHint() {
     const selectedOption = rentalBookSelect.options[rentalBookSelect.selectedIndex];
     if (selectedOption && selectedOption.value) {
-      rentalBookId.value = selectedOption.value;
       rentalBookStock.style.display = 'block';
       rentalBookStock.textContent = `📦 ${selectedOption.text.split('(').pop()?.replace(')', '') || ''}`;
     } else {
       rentalBookStock.style.display = 'none';
     }
-  }
-
-  function syncRentalBookFromId() {
-    const typedId = rentalBookId.value.trim().toLowerCase();
-    const matchedBook = rentalBooksCache.find(book => (book.id || '').toLowerCase() === typedId);
-
-    if (matchedBook) {
-      rentalBookSelect.value = matchedBook.id;
-      rentalBookStock.style.display = 'block';
-      rentalBookStock.textContent = matchedBook.copies_available > 0
-        ? `📦 ${matchedBook.copies_available} exemplar(es) disponível(is)`
-        : '⚠️ Este livro está sem exemplares disponíveis.';
-      return matchedBook;
-    }
-
-    rentalBookSelect.value = '';
-    if (typedId) {
-      rentalBookStock.style.display = 'block';
-      rentalBookStock.textContent = '⚠️ ID não localizado no acervo atual.';
-    } else {
-      rentalBookStock.style.display = 'none';
-    }
-    return null;
   }
 
   function getEffectiveDurationDays() {
@@ -836,20 +813,25 @@
     e.preventDefault();
     if (!currentUser) return;
 
-    const book_id = rentalBookId.value.trim();
+    const book_id = rentalBookSelect.value;
+    const copy_id = rentalBookId.value.trim();
     const renter_name = rentalRenterName.value.trim();
     const renter_contact = rentalRenterContact.value.trim();
     const start_date = rentalStartDate.value;
     const duration_days = getEffectiveDurationDays();
     const location_id = rentalLocationSelect.value;
 
-    if (!book_id) {
-      showToast('Informe o ID do livro para registrar o empréstimo.', 'error');
+    if (!copy_id) {
+      showToast('Informe o ID único do exemplar para registrar o empréstimo.', 'error');
       return;
     }
-    const matchedBook = rentalBooksCache.find(book => (book.id || '').toLowerCase() === book_id.toLowerCase());
+    if (!book_id) {
+      showToast('Selecione o título do livro para registrar o empréstimo.', 'error');
+      return;
+    }
+    const matchedBook = rentalBooksCache.find(book => book.id === book_id);
     if (!matchedBook) {
-      showToast('O ID informado não corresponde a um livro disponível no acervo.', 'error');
+      showToast('O título selecionado não corresponde a um livro disponível no acervo.', 'error');
       return;
     }
     if (matchedBook.copies_available <= 0) {
@@ -862,7 +844,7 @@
     }
 
     try {
-      await API.createRental({ book_id, renter_name, renter_contact, start_date, duration_days, location_id });
+      await API.createRental({ book_id, copy_id, renter_name, renter_contact, start_date, duration_days, location_id });
 
       closeRentalModal();
       showToast(`Aluguel registrado com sucesso para ${renter_name}!`, 'success');
@@ -875,7 +857,10 @@
         await renderAdminDashboard();
       }
     } catch (err) {
-      showToast(err.message || 'Erro ao registrar aluguel.', 'error');
+      const message = err.message?.includes('Livro já alugado')
+        ? 'Livro já alugado. Esse ID está vinculado a outro empréstimo ativo.'
+        : (err.message || 'Erro ao registrar aluguel.');
+      showToast(message, 'error');
     }
   }
 
@@ -1182,7 +1167,6 @@
       rentalCustomDays.addEventListener('keyup', updateModalReturnDate);
     }
     rentalBookSelect.addEventListener('change', updateBookStockHint);
-    rentalBookId.addEventListener('input', syncRentalBookFromId);
     closeRentalModalBtn.addEventListener('click', closeRentalModal);
     cancelRentalModalBtn.addEventListener('click', closeRentalModal);
 

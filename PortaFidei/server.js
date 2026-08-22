@@ -346,14 +346,15 @@ app.get('/api/rentals', authenticateToken, async (req, res) => {
 // 10. RENTALS: Create (admin registra diretamente, com decremento)
 app.post('/api/rentals', authenticateToken, async (req, res) => {
   try {
-    const { book_id, renter_name, renter_contact, start_date, duration_days, location_id } = req.body;
+    const { book_id, copy_id, renter_name, renter_contact, start_date, duration_days, location_id } = req.body;
 
-    if (!book_id || !renter_name || !start_date) {
-      return res.status(400).json({ error: 'Livro, nome do locatário e data de início são obrigatórios.' });
+    if (!book_id || !copy_id || !renter_name || !start_date) {
+      return res.status(400).json({ error: 'Livro, ID do exemplar, nome do locatário e data de início são obrigatórios.' });
     }
 
     const newRental = await db.createRental({
       book_id,
+      copy_id,
       renter_name,
       renter_contact,
       start_date,
@@ -364,7 +365,8 @@ app.post('/api/rentals', authenticateToken, async (req, res) => {
     res.status(201).json(newRental);
   } catch (err) {
     console.error('Erro no aluguel:', err.message);
-    res.status(400).json({ error: err.message || 'Erro ao registrar aluguel.' });
+    const status = err.code === 'COPY_ALREADY_RENTED' ? 409 : 400;
+    res.status(status).json({ error: err.message || 'Erro ao registrar aluguel.' });
   }
 });
 
