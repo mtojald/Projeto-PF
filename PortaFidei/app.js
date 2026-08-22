@@ -134,6 +134,10 @@
     static async updateReview(reviewId, reviewData) {
       return await this.request(`/reviews/${reviewId}`, 'PUT', reviewData);
     }
+
+    static async deleteReview(reviewId) {
+      return await this.request(`/reviews/${reviewId}`, 'DELETE');
+    }
   }
 
   // --- APP STATE ---
@@ -569,8 +573,8 @@
         const pinnedBadge = review.is_pinned
           ? `<span class="review-pinned-badge"><i data-lucide="pin"></i> Fixada no topo</span>`
           : '';
-        const editAction = isAdmin
-          ? `<button class="review-edit-btn edit-review-btn" type="button" data-review-id="${escapeHtml(review.id)}"><i data-lucide="pencil"></i> Editar</button>`
+        const adminActions = isAdmin
+          ? `<div class="review-actions"><button class="review-edit-btn edit-review-btn" type="button" data-review-id="${escapeHtml(review.id)}"><i data-lucide="pencil"></i> Editar</button><button class="review-delete-btn delete-review-btn" type="button" data-review-id="${escapeHtml(review.id)}" aria-label="Excluir review de ${escapeHtml(review.book_title)}"><i data-lucide="trash-2"></i> Excluir</button></div>`
           : '';
 
         return `
@@ -584,13 +588,17 @@
             </div>
             ${pinnedBadge}
             <p class="review-opinion">${escapeHtml(review.opinion)}</p>
-            <div class="review-card-footer"><span class="review-date">Atualizada em ${formatDateBR(review.updated_at || review.created_at)}</span>${editAction}</div>
+            <div class="review-card-footer"><span class="review-date">Atualizada em ${formatDateBR(review.updated_at || review.created_at)}</span>${adminActions}</div>
           </article>
         `;
       }).join('');
 
       document.querySelectorAll('.edit-review-btn').forEach(btn => {
         btn.addEventListener('click', () => openReviewModal(btn.getAttribute('data-review-id')));
+      });
+
+      document.querySelectorAll('.delete-review-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleDeleteReview(btn.getAttribute('data-review-id')));
       });
 
       if (window.lucide) window.lucide.createIcons();
@@ -1030,6 +1038,22 @@
       await renderReviews();
     } catch (err) {
       showToast(err.message || 'Erro ao salvar review.', 'error');
+    }
+  }
+
+  async function handleDeleteReview(reviewIdToDelete) {
+    if (!currentUser || !reviewIdToDelete) return;
+
+    const review = currentReviewsCache.find(item => item.id === reviewIdToDelete);
+    const bookTitle = review?.book_title || 'esta review';
+    if (!window.confirm(`Excluir a review de “${bookTitle}”? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      await API.deleteReview(reviewIdToDelete);
+      showToast('Review excluída com sucesso!', 'info');
+      await renderReviews();
+    } catch (err) {
+      showToast(err.message || 'Erro ao excluir review.', 'error');
     }
   }
 
