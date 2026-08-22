@@ -496,6 +496,17 @@ const Repository = {
     return data;
   },
 
+  async deleteReview(reviewId) {
+    if (!String(reviewId || '').trim()) throw new Error('Review inválida.');
+
+    const { error } = await supabaseAdmin
+      .from('book_reviews')
+      .delete()
+      .eq('id', reviewId);
+
+    if (error) throw error;
+  },
+
   // --------------------------------------------------------------------
   // STATS (Admin Dashboard)
   // --------------------------------------------------------------------

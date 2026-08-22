@@ -21,7 +21,10 @@ test('reviews are wired through the API, UI and Supabase migration', () => {
   assert.match(server, /app\.get\('\/api\/reviews'/);
   assert.match(server, /app\.post\('\/api\/reviews'/);
   assert.match(server, /app\.put\('\/api\/reviews\/:id'/);
+  assert.match(server, /app\.delete\('\/api\/reviews\/:id'/);
   assert.match(client, /checkDuplicateReview/);
+  assert.match(client, /deleteReview/);
+  assert.match(client, /delete-review-btn/);
   assert.match(client, /reviewPinned/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.book_reviews/);
   assert.match(migration, /CHECK \(rating >= 0 AND rating <= 10\)/);
