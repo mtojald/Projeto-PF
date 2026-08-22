@@ -22,7 +22,7 @@ Sistema web de catálogo e gerenciamento de empréstimos da biblioteca Porta Fid
 
 ### Regra do ID do livro
 
-Todo empréstimo exige o ID do livro. Esse identificador é gravado no registro do empréstimo e permanece como referência até que a devolução seja registrada. Isso evita a troca de exemplar durante o ciclo do aluguel.
+Cada unidade física do acervo deve ter um ID próprio, mesmo quando várias unidades têm o mesmo título. No registro do empréstimo, o admin seleciona o título e informa o ID único do exemplar na caixa de texto. Esse ID fica gravado no empréstimo e não pode ser usado em outro empréstimo enquanto estiver ativo ou atrasado. Após a devolução, ele pode ser reutilizado. Se houver tentativa de reutilização durante o empréstimo, o sistema informa: **Livro já alugado**.
 
 ## Stack
 

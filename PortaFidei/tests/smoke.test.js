@@ -32,3 +32,17 @@ test('required static application files are present', () => {
     assert.equal(fs.existsSync(path.join(appRoot, file)), true, `${file} should exist`);
   }
 });
+
+test('rental copy IDs are required and cannot be reused while active', () => {
+  const server = read('server.js');
+  const client = read('app.js');
+  const db = read('db.js');
+  const migrationPath = path.join(repoRoot, 'supabase', 'migrations', '20260822100000_add_rental_copy_id.sql');
+  const migration = fs.readFileSync(migrationPath, 'utf8');
+
+  assert.match(server, /copy_id/);
+  assert.match(client, /Livro já alugado/);
+  assert.match(db, /copy_id/);
+  assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS rentals_active_copy_id_unique/);
+  assert.match(migration, /WHERE status IN \('active', 'overdue'\)/);
+});

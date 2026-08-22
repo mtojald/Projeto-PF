@@ -25,6 +25,16 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 console.log('✅ Conectado ao Supabase (Admin-Only Mode)');
 
+function normalizeCopyId(copyId) {
+  return String(copyId || '').trim().toUpperCase();
+}
+
+function copyAlreadyRentedError(copyId) {
+  const error = new Error(`Livro já alugado. O ID "${copyId}" está vinculado a um empréstimo ativo e só poderá ser reutilizado após a devolução.`);
+  error.code = 'COPY_ALREADY_RENTED';
+  return error;
+}
+
 const Repository = {
   // --------------------------------------------------------------------
   // AUTH (Admin-Only)
@@ -268,7 +278,20 @@ const Repository = {
     }));
   },
 
-  async createRental({ book_id, renter_name, renter_contact, start_date, duration_days, location_id }) {
+  async createRental({ book_id, copy_id, renter_name, renter_contact, start_date, duration_days, location_id }) {
+    const normalizedCopyId = normalizeCopyId(copy_id);
+    if (!normalizedCopyId) throw new Error('O ID do exemplar é obrigatório.');
+
+    const { data: existingCopy, error: copyLookupError } = await supabaseAdmin
+      .from('rentals')
+      .select('id')
+      .eq('copy_id', normalizedCopyId)
+      .in('status', ['active', 'overdue'])
+      .limit(1);
+
+    if (copyLookupError) throw copyLookupError;
+    if (existingCopy?.length) throw copyAlreadyRentedError(normalizedCopyId);
+
     // Buscar livro e validar disponibilidade
     const book = await this.getBookById(book_id);
     if (!book) throw new Error('Livro não encontrado.');
@@ -286,6 +309,7 @@ const Repository = {
         .from('rentals')
         .insert([{
           book_id,
+          copy_id: normalizedCopyId,
           renter_name: renter_name.trim(),
           renter_contact: (renter_contact || '').trim(),
           start_date,
@@ -300,8 +324,11 @@ const Repository = {
       if (error) throw error;
       insertedData = data;
     } catch (err) {
+      if (err.code === '23505' && err.message?.includes('rentals_active_copy_id_unique')) {
+        throw copyAlreadyRentedError(normalizedCopyId);
+      }
       if (err.code === 'PGRST204' || err.message?.includes('schema cache')) {
-        throw new Error('A tabela "rentals" no Supabase precisa das colunas "renter_name" e "renter_contact". Execute o script SQL de migração no Supabase Dashboard.');
+        throw new Error('A tabela "rentals" no Supabase precisa das colunas "copy_id", "renter_name" e "renter_contact". Execute a migração no Supabase Dashboard.');
       }
       throw err;
     }
