@@ -49,3 +49,12 @@ test('rental copy IDs are required and cannot be reused while active', () => {
   assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS rentals_active_copy_id_unique/);
   assert.match(migration, /WHERE status IN \('active', 'overdue'\)/);
 });
+
+test('rental table shows the copy ID in its own column', () => {
+  const client = read('app.js');
+  const index = read('index.html');
+
+  assert.match(index, /<th>ID do livro \/ exemplar<\/th>/);
+  assert.match(client, /<td><span class="mono-id"/);
+  assert.match(client, /displayCopyId/);
+});
